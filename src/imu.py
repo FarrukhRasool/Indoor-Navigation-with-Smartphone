@@ -17,7 +17,9 @@ This module only loads and cleans these streams. It does NOT do step detection,
 BLE handling, or filtering. Those belong to other modules.
 """
 
+import numpy as np
 import pandas as pd
+from scipy.signal import find_peaks
 
 
 # The four IMU sub-streams we expect, identified by the "id" column.
@@ -77,3 +79,64 @@ def extract_all_imu_streams(imu_rows, t0_ms):
     for imu_type in IMU_TYPES:
         streams[imu_type] = extract_imu_stream(imu_rows, imu_type, t0_ms)
     return streams
+
+
+# ---------------------------------------------------------------------------
+# Step detection from raw acceleration
+#
+# Idea (kept intentionally simple): when a person takes a step, the phone shakes
+# and the overall acceleration briefly spikes. We measure the magnitude of the
+# acceleration (which ignores phone orientation) and count the spikes as steps.
+# ---------------------------------------------------------------------------
+
+
+def acceleration_magnitude(accel):
+    """
+    Compute the magnitude of the acceleration for each sample.
+
+    Using the magnitude (length of the x, y, z vector) means the result does not
+    depend on how the phone is rotated in the pocket. At rest this value is close
+    to gravity (~9.8 m/s^2); during a step it briefly rises above that.
+    """
+    return np.sqrt(accel["x"] ** 2 + accel["y"] ** 2 + accel["z"] ** 2)
+
+
+def detect_steps(accel, min_seconds_between_steps=0.3):
+    """
+    Detect steps as peaks in the acceleration magnitude.
+
+    Parameters
+    ----------
+    accel : DataFrame
+        Cleaned accelerometer stream (columns t_ms, t_rel, x, y, z).
+    min_seconds_between_steps : float
+        Shortest time we allow between two steps. This stops a single step from
+        being counted twice.
+
+    Returns
+    -------
+    DataFrame with columns: step_id, t_ms, t_rel, magnitude
+        One row per detected step (a "movement event"), in time order.
+    """
+    magnitude = acceleration_magnitude(accel)
+
+    # A step peak must rise clearly above the resting gravity level. Using
+    # mean + one standard deviation adapts to each run instead of a fixed number.
+    height_threshold = magnitude.mean() + magnitude.std()
+
+    # Convert the minimum time gap into a number of samples for find_peaks.
+    sampling_rate_hz = len(accel) / (accel["t_rel"].max() - accel["t_rel"].min())
+    min_distance_samples = int(min_seconds_between_steps * sampling_rate_hz)
+
+    peak_indices, _ = find_peaks(
+        magnitude,
+        height=height_threshold,
+        distance=min_distance_samples,
+    )
+
+    # Turn the detected peaks into a simple list of movement events.
+    steps = accel.iloc[peak_indices][["t_ms", "t_rel"]].copy()
+    steps["magnitude"] = magnitude.iloc[peak_indices].values
+    steps = steps.reset_index(drop=True)
+    steps.insert(0, "step_id", range(1, len(steps) + 1))
+    return steps
