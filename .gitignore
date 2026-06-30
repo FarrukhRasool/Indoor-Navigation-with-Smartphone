@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Machine Learning models
+*.keras
+*.h5
+*.hdf5
+*.ckpt
+*.pb
+*.onnx
+*.tflite
+
+# PyTorch
+*.pt
+*.pth
+
+# TensorFlow checkpoints
+checkpoint
+events.out.tfevents.*
+
+# Dataset cache
+data/
+datasets/
+.cache/

@@ -1,0 +1,213 @@
+EMBEDDED INTELLIGENCE
+PARTIAL EXAM ASSIGNMENT: INDOOR NAVIGATION WITH SMARTPHONE, BLE BEACONS, AND IMU
+
+Final project assignment for the Master's program in AI. The task combines data collection, sensor fusion, indoor positioning, structured experimentation, and continuous presentation of progress.
+Keywords: Indoor Navigation, BLE, IMU, Kalman Filter, Particle Filter, Jupyter Notebook
+
+-------------------------------------------------------------------------------
+1. CONTEXT AND GENERAL CONDITIONS
+-------------------------------------------------------------------------------
+In the third and final project of the module, you will develop and evaluate a method for indoor navigation inside a building based on smartphone sensor data and Bluetooth beacons. This assignment is intended for students in the Master's program in AI and requires a methodologically sound, technically justified, and experimentally validated solution.
+
+In the test area, eight Bluetooth beacons are installed across two floors of the EMI building. The positions of the beacons are known, and received beacon messages can be uniquely assigned to individual beacons.
+
+For data acquisition, you are provided with a smartphone app that records the following data at regular intervals:
+- Bluetooth data from received beacons
+- Raw IMU data
+- Filtered IMU data
+
+The recording app is intended for Android devices. An APK file will be provided. To install it, please enable Developer Mode on the device. The source code of the app will also be provided.
+
+During data recording, the smartphone should be kept in the user's trouser pocket.
+The assignment must be completed in teams of three.
+The expected workload is approximately 40 hours per person. Every team member must be familiar with the complete project.
+
+-------------------------------------------------------------------------------
+2. TASK DESCRIPTION
+-------------------------------------------------------------------------------
+Develop, implement, and evaluate a method for estimating the position and/or the traversed path of a person inside the building. The basis for this task is the smartphone sensor and beacon data, the known beacon infrastructure, and structural knowledge about the building.
+
+Conduct four structured measurement runs in the test area. The selected paths should cover different movement patterns, direction changes, signal conditions, and at least one floor transition. In addition, make sure that the four test runs start from different starting positions.
+
+As position references, you may use the doors of the laboratories in the test area. Stop briefly at selected doors and record the time at which you were at that location. These events serve as reference points for the later interpretation and evaluation of your position estimates. Analyze the first run before conducting additional runs and make sure that the resulting datasets are usable.
+
+-------------------------------------------------------------------------------
+3. OBJECTIVES
+-------------------------------------------------------------------------------
+- Collect a suitable dataset through four systematic measurement runs in the building.
+- Analyze the Bluetooth and IMU data with respect to quality, information content, and sources of disturbance.
+- Develop a method for position or path estimation based on concepts covered in the lecture.
+- Use sensor fusion to jointly evaluate motion information, beacon signals, and structural knowledge of the building.
+- Experimentally evaluate the chosen method on the four recorded measurement runs.
+- Situate your results through a compact related-work analysis.
+
+-------------------------------------------------------------------------------
+4. METHODOLOGICAL REQUIREMENTS
+-------------------------------------------------------------------------------
+In your work, you must explicitly use exactly one method from the lecture. You may choose between the following approaches:
+- Kalman filter or an appropriate Kalman filter variant
+- Particle filter
+
+Your choice of method must be explicitly justified. Discuss the selected method with regard to its assumptions, strengths, weaknesses, and suitability for the given indoor navigation problem.
+
+The use of sensor fusion is mandatory. In particular, the following information sources should be combined:
+- Step detection from raw acceleration data to determine individual steps
+- Movement direction to derive an error-prone motion sector for the likely new area of presence
+- BLE beacon information, where signals with high signal strength should be weighted more strongly than distant or weaker signals
+- Knowledge about the building structure, which can be extracted from the attached map and incorporated into the position estimation
+
+Pay particular attention to the fact that the building structure is a central modeling challenge. Walls, corridors, doors, stairs, and transitions between floors strongly constrain plausible positions and movements. These constraints must be explicitly considered in both your modeling and your evaluation.
+
+Also reflect on the fact that such spatial restrictions can often be modeled more directly and flexibly in a particle filter than in a classical Kalman filter, because invalid states can be discarded or down-weighted more easily.
+
+-------------------------------------------------------------------------------
+5. EXPECTED WORK STEPS
+-------------------------------------------------------------------------------
+- Plan and conduct four measurement runs in the building
+- Document the traversed paths, boundary conditions, and reference timestamps at doors
+- Preprocess, synchronize, and clean the sensor data
+- Analyze beacon visibility, signal strengths, and IMU trajectories
+- Perform step detection based on raw acceleration data
+- Derive a movement direction and model a plausible motion sector
+- Weight beacon observations depending on their signal strength
+- Incorporate building structure and movement restrictions from the attached map, including a consistent alignment between building orientation and world coordinate system
+- Develop either a Kalman-filter-based or a particle-filter-based approach
+- Evaluate the selected approach using appropriate metrics and reference points
+
+-------------------------------------------------------------------------------
+6. DATA COLLECTION
+-------------------------------------------------------------------------------
+You must carry out exactly four data recordings or measurement runs. These should be designed such that different situations in the test area are covered. This includes in particular:
+- Different starting positions
+- Straight paths
+- Turns and direction changes
+- Areas with good and poor beacon coverage
+- Different walking speeds
+- At least one floor transition
+- Repeated path segments to investigate reproducibility
+
+Door positions serve as practical reference points. The corresponding timestamps must be documented clearly and used in the evaluation.
+For the evaluation, it is permissible to fix the starting point of a test run.
+
+-------------------------------------------------------------------------------
+7. EXPERIMENTAL PROTOCOL
+-------------------------------------------------------------------------------
+In addition to the technical implementation, you must submit a structured experimental protocol. It serves to ensure the traceability of the data collection and evaluation. In particular, it must be clear what the objectives of the individual runs were, under which conditions they were conducted, and which people and devices were involved.
+
+For each recording, the actual traversed path must also be documented. This can be done, for example, in the form of a sketch on the building map, a marked trajectory on the floor plan, or a similarly clear graphical representation.
+
+The experimental protocol must include at least the following information:
+- Unique identifier of the measurement run
+- Date and time
+- Objective of the run
+- Participating persons and their roles
+- Hardware used
+- Smartphone position on the body
+- Starting position
+- Description of the path
+- Representation of the actual traversed path
+- Special events or anomalies
+- Reference points used and recorded timestamps
+
+If possible, use a structured table to document the measurement runs, for example in the following form:
+
+Run ID | Date/Time | Run Objective | Persons / Roles | Hardware | Smartphone Position | Starting Position | Path Description | Door Reference Points / Timestamps | Observations
+-------|-----------|---------------|-----------------|----------|---------------------|-------------------|------------------|------------------------------------|-------------
+R1     | 2026-06-02 10:15 | Baseline run on a straight path | Person A: phone, Person B: protocol, Person C: observation | smartphone model, beacon setup | trouser pocket | ground-floor entrance | straight path, 1 floor transition, 3 stops | T1 10:16:05, T4 10:17:12 | brief signal loss
+
+In addition to the tabular overview, each run must include a graphical or sketched representation of the actually traversed path.
+
+-------------------------------------------------------------------------------
+8. RELATED WORK
+-------------------------------------------------------------------------------
+In addition to the technical implementation, write a short related-work discussion. The goal is not a complete literature review, but a well-founded academic positioning of your results. Use exactly three scientific sources for this purpose.
+
+Address at least the following points:
+- Which established approaches to indoor positioning with BLE, IMU, or sensor fusion can be found in the literature?
+- Which assumptions do these methods make?
+- In what ways is your approach similar to or different from these methods?
+- How should your results be interpreted relative to the typical strengths and limitations of such methods?
+
+For each source, explain its method, assumptions, and relevance for interpreting your own results.
+
+-------------------------------------------------------------------------------
+9. PROCESS AND SUPERVISION
+-------------------------------------------------------------------------------
+During the working period, weekly online meetings are mandatory. Appointments can be booked online.
+Meetings may also take place during the regular lecture time slots. These meetings will be held online via BigBlueButton.
+
+In these meetings, your current work progress must be presented in a traceable way. This progress must be supported by plots, visualizations, and other suitable representations. In particular, meaningful intermediate results are expected for data collection, preprocessing, sensor fusion, position estimation, and evaluation. The meetings should also be used to define the next concrete steps for the following work phase.
+
+It is explicitly expected that progress becomes continuously visible throughout the working period and is not presented only at the end of the project phase.
+
+In addition, weaknesses, problems, and open issues of the current state of work must be explicitly identified and discussed during these meetings. Each team member is expected to participate in the meetings.
+The continuous presentation of progress in the meetings is part of the assessment.
+
+-------------------------------------------------------------------------------
+10. EVALUATION
+-------------------------------------------------------------------------------
+Evaluate your method in a traceable and data-driven way. Suitable guiding questions include in particular:
+- How well do the estimated positions agree with the documented reference positions at doors?
+- How stable is the selected method across the four runs?
+- How do signal noise, occlusion, drift, or floor transitions affect the estimate?
+- What strengths and weaknesses does the selected method show in the given test area?
+- How useful is the fusion of step information, movement direction, beacon weighting, and building structure for the position estimate?
+
+Use appropriate visualizations, for example:
+- Trajectories over building floor plans
+- Time series of the position estimates
+- Errors at reference points
+- Comparison of parameter settings
+
+-------------------------------------------------------------------------------
+11. SUBMISSION AND DOCUMENTATION
+-------------------------------------------------------------------------------
+The submission deadline is July 22, 2026.
+The submission must be provided in the form of a Jupyter Notebook that combines evaluation, documentation, and presentation of results.
+
+The Jupyter Notebook must be organized in a traceable and reproducible order. All major evaluation steps should be executable in a meaningful cell order.
+
+The submission must include at least:
+- The complete recorded data
+- A complete Jupyter Notebook containing the evaluation scripts
+- The documentation as part of the Jupyter Notebook
+- An experimental protocol documenting the measurement runs
+- The documented reference timestamps at doors
+- Suitable visualizations of the results
+- A related-work discussion based on three sources
+
+The Jupyter Notebook must in particular contain:
+- Experimental setup and data collection
+- Experimental protocol and organization of the measurement runs
+- Description of the sensors and data sources used
+- Data preprocessing and synchronization
+- Step detection and motion model
+- Use and weighting of BLE beacon signals
+- Integration of structural knowledge from the building map
+- Modeling and implementation of the selected filtering method
+- Experimental design and evaluation methodology
+- Results and evaluation of the selected method
+- Discussion of error sources, limitations, and possible improvements
+- Academic positioning through related work
+
+The notebook should be structured in such a way that third parties can follow the processing steps, the evaluation, and the results without unnecessary effort.
+
+-------------------------------------------------------------------------------
+12. ASSESSMENT CRITERIA
+-------------------------------------------------------------------------------
+Assessment is based on:
+- Quality and systematic nature of the data collection
+- Quality and completeness of the experimental protocol
+- Correct and traceable use of a method from the lecture, in particular a Kalman filter or particle filter
+- Quality of the justification for the chosen method
+- Quality and plausibility of the applied sensor fusion
+- Quality of the experimental evaluation
+- Quality, continuity, and traceability of the progress presented in the meetings
+- Meaningful use of the door reference points
+- Depth of analysis and reflection
+- Quality of the related-work discussion
+- Clarity and technical quality of the notebook, code, and presentation
+
+A perfect navigation system is not expected. What matters is a methodologically sound approach, a traceable evaluation of the selected method, and a realistic assessment of your own results under the given conditions. The scope of the assignment is intentionally designed so that it can be completed within approximately 40 hours per person. Therefore, limit your implementation to one filtering method, four well-documented data recordings, a focused evaluation based on the door reference points, and a related-work discussion with three sources.
+
+Revision 1.01, 2.6.2026
