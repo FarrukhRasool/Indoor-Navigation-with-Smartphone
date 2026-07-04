@@ -42,6 +42,5 @@ checkpoint
 events.out.tfevents.*
 
 # Dataset cache
-data/
 datasets/
 .cache/
