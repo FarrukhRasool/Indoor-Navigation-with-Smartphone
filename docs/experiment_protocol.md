@@ -62,10 +62,15 @@ descriptions, are:
 | `arrive_emi3`         | 1     | East end (right staircase)      |
 | `arrive_emi2`         | 1     | Middle of the corridor          |
 
-The remaining two beacons (of the eight installed) were not observed on the
-walked corridors; they are likely located in the east wing, which none of the
-four paths traverse. Exact beacon coordinates are still **TBD** and will be
-placed on the floor plans for the building model.
+Only these six beacons are marked (in red) on the path sketches and observed in
+the data, so the position estimate uses exactly these six. Any further installed
+beacons are not marked on the paths and never appear in the recordings, so they
+are omitted.
+
+Approximate metric coordinates for these beacons (west/middle/east on each floor)
+are defined in `src/building.py`. The scale is nominal (derived from an assumed
+door spacing, since no exact building dimensions were available) and can be
+adjusted via the constants at the top of that file.
 
 ---
 
@@ -111,10 +116,15 @@ Known issues and anomalies:
 
 - **Run 2 duplicate (resolved):** the originally submitted `Record_data_path_2.csv`
   was byte-for-byte identical to Run 1. It was replaced with the correct Run 2
-  recording, which is now unique. Its sensor duration is ~7.6 s longer than the
-  reference window, most likely due to idle time before the START checkpoint;
-  the exact start offset will be determined from the first sustained walking
-  motion in the accelerometer signal.
+  recording, which is now unique.
+- **Run 2 start offset (resolved):** Run 2's sensor duration is ~7.6 s longer
+  than its reference window (182.87 s). Analysis of the accelerometer shows the
+  person walks continuously from ~1 s after recording start, with ~10 steps
+  occurring *after* the END checkpoint (last step at 189.79 s). The extra time is
+  therefore **trailing motion after END, not idle time at the start**. The
+  recording clock aligns with the reference clock, so **`start_offset_s = 0`**
+  for Run 2 (same as Runs 1, 3, 4). The trailing motion falls outside the
+  reference window and does not affect evaluation.
 - **Beacon coverage:** only 6 of 8 beacons are seen (the east-wing pair is not
   covered by these paths). BLE sampling is event-driven and irregular, with
   occasional gaps (e.g. Run 1's largest BLE gap ≈ 3.8 s).
@@ -193,8 +203,12 @@ in the sketches and match the spreadsheet.
 ## 8. Open items
 
 - Fill in **persons/roles** and **hardware** details (Sections 1 and 6).
-- Determine exact **beacon coordinates** on the floor plans (Section 3).
-- Confirm the **Run 2 start offset** from the first walking motion (Section 5).
+- ~~Determine exact beacon coordinates~~ **Resolved (approximate):** 6 beacons +
+  door positions defined in `src/building.py`; scale is nominal and adjustable.
+- ~~Confirm the Run 2 start offset~~ **Resolved:** `start_offset_s = 0` (Section 5).
 - Reconcile minor **checkpoint-numbering** differences between some path
   descriptions and the spreadsheet (e.g. Path 2 labels the final three
   checkpoints 13–15 while the spreadsheet uses 13, 15, 16).
+- Minor spreadsheet typo: Path 3's title cell reads `252640 ms`, but the actual
+  cumulative END time (and `04:12,46`) is `252460 ms`. The loader correctly uses
+  the real cumulative value (252.46 s).

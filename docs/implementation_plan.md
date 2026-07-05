@@ -50,8 +50,8 @@ corridors on two floors, with non-linear map constraints and noisy RSSI.
 |----|------------------------------------|---------------|-----------------------------------------|
 | M0 | Project setup & data understanding | ✅ Done        | (docs, data exploration)                |
 | M1 | Preprocessing pipeline             | ✅ Done        | `imu.py`, `ble.py`, `preprocessing.py`  |
-| M2 | Building model & reference data    | ⬜ Next        | `building.py`, `evaluation.py` (loader) |
-| M3 | IMU motion model                   | 🟡 Started     | `imu.py`                                |
+| M2 | Building model & reference data    | ✅ Done        | `building.py`, `evaluation.py` (loader) |
+| M3 | IMU motion model                   | ✅ Done        | `imu.py`                                |
 | M4 | BLE observation model              | ⬜ Planned     | `ble.py`                                |
 | M5 | Particle filter (core fusion)      | ⬜ Planned     | `particle_filter.py`                    |
 | M6 | Evaluation & experiments           | ⬜ Planned     | `evaluation.py`, `visualization.py`     |
@@ -135,7 +135,16 @@ reference timestamps as ground truth.
 
 ---
 
-### M3 — IMU motion model  🟡 (started)
+### M3 — IMU motion model  ✅ (done)
+
+**Status note:** step detection, gyro-based heading (with median-bias removal),
+the per-step motion table, and a dead-reckoning diagnostic are implemented and
+run on all four runs (cadence ~1.4 steps/s). As expected, dead reckoning drifts
+over a few minutes because of residual heading error — this is the motivation for
+the map/BLE correction in M5. Step length is currently a constant (0.7 m) and
+heading is anchored to the start direction; both can be refined during filter
+tuning if needed.
+
 
 **Objective:** convert raw IMU into per-step movement vectors (how far, which
 direction) — the motion input to the filter.

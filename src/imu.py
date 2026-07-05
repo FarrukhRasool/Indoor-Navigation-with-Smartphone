@@ -13,8 +13,10 @@ told apart by the "id" column:
     - mag            : raw magnetometer (used later for heading)
     - imu_processed  : the app's already-filtered IMU signal (comparison only)
 
-This module only loads and cleans these streams. It does NOT do step detection,
-BLE handling, or filtering. Those belong to other modules.
+This module loads and cleans these streams and derives the motion model from
+them: step detection from raw acceleration, and travel direction (heading) from
+the gyroscope. It does NOT do BLE handling, building constraints, or the filter
+itself. Those belong to other modules.
 """
 
 import numpy as np
@@ -140,3 +142,128 @@ def detect_steps(accel, min_seconds_between_steps=0.3):
     steps = steps.reset_index(drop=True)
     steps.insert(0, "step_id", range(1, len(steps) + 1))
     return steps
+
+
+# ---------------------------------------------------------------------------
+# Heading (travel direction) from the gyroscope
+#
+# When the person turns, the phone rotates about the vertical axis. We estimate
+# the vertical direction from gravity (the mean acceleration), project the
+# gyroscope onto it to get the turning rate, and integrate that rate to get how
+# much the heading has changed over time. The phone keeps a roughly constant
+# orientation in the pocket during a run, so a single gravity estimate is enough.
+# ---------------------------------------------------------------------------
+
+
+def estimate_gravity_direction(accel):
+    """
+    Estimate the vertical (gravity) direction in the phone frame.
+
+    Dynamic accelerations from walking average out over a run, so the mean of the
+    accelerometer points roughly along gravity. Returned as a unit vector.
+    """
+    mean = accel[["x", "y", "z"]].mean().values
+    return mean / np.linalg.norm(mean)
+
+
+def heading_from_gyro(gyro, gravity_direction, initial_heading=0.0,
+                      remove_bias=True):
+    """
+    Integrate the gyroscope into a relative heading over time.
+
+    The yaw rate (turning rate about the vertical) is the gyroscope projected onto
+    the gravity direction. Integrating it gives the heading change since the
+    start. The result is relative: it is anchored by `initial_heading`.
+
+    A small constant bias in the gyroscope would otherwise accumulate into a large
+    false rotation over a few minutes. Since the person walks mostly straight
+    corridors (yaw rate near zero), the median yaw rate is a good estimate of that
+    bias, so we subtract it before integrating.
+
+    Returns
+    -------
+    DataFrame with columns: t_rel, heading
+        Heading in radians in the world frame (0 = east, along +x).
+    """
+    yaw_rate = (gyro["x"] * gravity_direction[0]
+                + gyro["y"] * gravity_direction[1]
+                + gyro["z"] * gravity_direction[2])
+
+    if remove_bias:
+        yaw_rate = yaw_rate - yaw_rate.median()
+
+    # Integrate rate over time: heading(t) = initial + sum(rate * dt).
+    dt = gyro["t_rel"].diff().fillna(0.0)
+    heading = initial_heading + (yaw_rate * dt).cumsum()
+
+    return pd.DataFrame({"t_rel": gyro["t_rel"].values, "heading": heading.values})
+
+
+def build_motion_table(run, step_length=0.7, initial_heading=0.0,
+                       heading_sigma_deg=15.0):
+    """
+    Build the per-step motion table used by the filter later.
+
+    For each detected step we record how far the person moved (step length) and
+    in which direction (heading), plus an angular uncertainty that describes the
+    "motion sector" of likely travel directions.
+
+    Parameters
+    ----------
+    run : Run
+        A loaded run (uses its accel and gyro streams).
+    step_length : float
+        Assumed distance covered per step, in metres (kept constant for now).
+    initial_heading : float
+        Heading at the start of the run, in radians (0 = east). Anchors the
+        otherwise relative gyro heading to the known start direction.
+    heading_sigma_deg : float
+        Angular uncertainty of each step's direction, in degrees.
+
+    Returns
+    -------
+    DataFrame with columns: t_rel, step_length, heading, heading_sigma
+        One row per detected step.
+    """
+    steps = detect_steps(run.accel)
+    gravity_direction = estimate_gravity_direction(run.accel)
+    heading_series = heading_from_gyro(run.gyro, gravity_direction, initial_heading)
+
+    # Look up the heading at each step time.
+    step_heading = np.interp(steps["t_rel"],
+                             heading_series["t_rel"],
+                             heading_series["heading"])
+
+    return pd.DataFrame({
+        "t_rel": steps["t_rel"].values,
+        "step_length": step_length,
+        "heading": step_heading,
+        "heading_sigma": np.deg2rad(heading_sigma_deg),
+    })
+
+
+def dead_reckoning(motion_table, start=(0.0, 0.0)):
+    """
+    Build a simple dead-reckoning trajectory from the motion table.
+
+    This walks step by step from the start point, moving `step_length` along each
+    step's `heading`. It uses no BLE and no map, so it drifts over time; it is a
+    diagnostic to check that the motion model is sensible before filtering.
+
+    Returns
+    -------
+    DataFrame with columns: t_rel, x, y
+        The start point followed by the position after each step.
+    """
+    dx = motion_table["step_length"] * np.cos(motion_table["heading"])
+    dy = motion_table["step_length"] * np.sin(motion_table["heading"])
+
+    x = start[0] + dx.cumsum()
+    y = start[1] + dy.cumsum()
+
+    # Prepend the start point so the trajectory begins where the walk began.
+    t_rel = np.concatenate([[motion_table["t_rel"].iloc[0]], motion_table["t_rel"].values])
+    xs = np.concatenate([[start[0]], x.values])
+    ys = np.concatenate([[start[1]], y.values])
+
+    return pd.DataFrame({"t_rel": t_rel, "x": xs, "y": ys})
