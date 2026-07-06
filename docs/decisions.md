@@ -202,3 +202,41 @@ boundary conditions per the assignment).
 
 **Status:** Confirmed (M3 refinement). Step length is still a tunable parameter of
 `build_motion_table`.
+
+---
+
+## D11 — Per-run initial heading calibrated from corridor geometry
+
+**Decision:** Set the filter's per-run **initial heading** (the absolute direction
+the integrated gyro heading is anchored to) by aligning each run's **first straight
+corridor leg** to the known corridor axis, rather than leaving it at 0 (east) for
+all runs. The calibrated start conditions live in `preprocessing.RUN_START`
+(start position + floor + `initial_heading` in radians).
+
+**Why:** The gyro gives only *relative* heading; the absolute anchor depends on how
+the phone sat in the pocket, an unknown constant yaw offset that differs per run.
+The assignment explicitly expects this and suggests anchoring to the known start
+direction / corridor geometry. For the first floor-0 leg (known to run east or
+west), the mean gyro heading over the leg is mapped onto that axis; the required
+offset is the initial heading. This uses **prior path knowledge and geometry**, not
+the door-error metric itself, so it does not overfit the evaluation references.
+
+Calibrated values: Run 1 +32°, Run 2 +10°, Run 3 −132°, Run 4 +147°. Effect on the
+map-only (5b) floor-0 door error:
+
+| Run | default 0 | calibrated | note |
+|-----|-----------|------------|------|
+| 1 | 3.6 m | 3.2 m | clean early leg |
+| 2 | 11.5 m | 10.7 m | short, under-counted leg → weak estimate |
+| 3 | 17.1 m | 8.8 m | large gain (Run 3 starts walking west) |
+| 4 | 19.7 m | 18.8 m | walks floor 0 only at the end → weak anchor |
+
+**Honest limitation:** the calibration only helps where a clean early single-floor
+leg exists (Runs 1, 3). Run 2's leg is short and its steps under-counted; Run 4
+walks floor 0 only at the very end, after the gyro has drifted through the whole
+run, so its anchor is weak. These remain documented weaknesses to be discussed in
+the evaluation; the BLE + map fusion is what must ultimately absorb residual
+heading error.
+
+**Status:** Confirmed. Values stored in `preprocessing.RUN_START`; the constants
+depend only on the (stable) heading-estimation code, not on step length.

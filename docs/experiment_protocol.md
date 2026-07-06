@@ -144,6 +144,15 @@ Known issues and anomalies:
 
 Sketches of the actual traversed paths: `assignment/path_1.jpg` … `path_4.jpg`.
 
+**Filter start conditions (fixed per run).** The assignment permits fixing the
+start point. Each run's start position and calibrated initial heading are stored in
+`preprocessing.RUN_START`. The start position comes from the path descriptions; the
+initial heading is calibrated by aligning the first straight corridor leg to the
+known corridor axis, which absorbs the unknown pocket-mounting yaw offset (see
+decision D11). Calibrated headings: Run 1 +32°, Run 2 +10°, Run 3 −132°, Run 4 +147°
+(0° = east). The calibration is reliable for Runs 1 and 3; Runs 2 and 4 have weak
+anchors (short/under-counted leg, and floor-0 walking only at the run's end).
+
 ---
 
 ## 7. Detailed path descriptions

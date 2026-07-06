@@ -35,6 +35,19 @@ RUN_FILE_PATTERN = "Record_data_path_{run_id}.csv"
 # The four measurement runs we recorded.
 KNOWN_RUN_IDS = [1, 2, 3, 4]
 
+# Known start conditions for each run, used to initialise the filter. The
+# assignment allows fixing the start point; the start position comes from the
+# documented path descriptions (see docs/experiment_protocol.md), and the initial
+# heading is calibrated by aligning each run's first straight corridor leg to the
+# known corridor axis (this absorbs the unknown pocket-mounting yaw offset; see
+# decision D11). Heading is in radians in the world frame (0 = east, +y = north).
+RUN_START = {
+    1: {"start": (0.0, 0.0),  "floor": 0, "initial_heading": 0.5603},
+    2: {"start": (17.5, 0.0), "floor": 0, "initial_heading": 0.1808},
+    3: {"start": (33.0, 0.0), "floor": 0, "initial_heading": -2.3083},
+    4: {"start": (2.0, 0.0),  "floor": 0, "initial_heading": 2.5722},
+}
+
 
 @dataclass
 class Run:
