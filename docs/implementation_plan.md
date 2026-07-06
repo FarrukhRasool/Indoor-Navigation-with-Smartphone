@@ -53,7 +53,7 @@ corridors on two floors, with non-linear map constraints and noisy RSSI.
 | M2 | Building model & reference data    | ✅ Done        | `building.py`, `evaluation.py` (loader) |
 | M3 | IMU motion model                   | ✅ Done        | `imu.py`                                |
 | M4 | BLE observation model              | ✅ Done        | `ble.py`                                |
-| M5 | Particle filter (core fusion)      | 🟡 In progress | `particle_filter.py`                    |
+| M5 | Particle filter (core fusion)      | ✅ Done        | `particle_filter.py`                    |
 | M6 | Evaluation & experiments           | ⬜ Planned     | `evaluation.py`, `visualization.py`     |
 | M7 | Notebook assembly & related work   | ⬜ Planned     | `notebooks/`                            |
 
@@ -267,7 +267,24 @@ over time. **This is the graded core.**
   alone cannot correct heading drift — it damps but does not fix the late-run
   excursion — which motivates the BLE update in 5c. Figure:
   `figures/run1_particle_constrained.png`. See decision D9.
-- 5c, 5d: not started.
+- **5c ✅ (done):** BLE correction. Added `run_with_ble` (event-driven RSSI weight
+  multiply on top of 5b) plus a beacon overlay in
+  `visualization.plot_trajectory_on_corridor`. Bringing this up surfaced two
+  motion-model calibration bugs, now fixed: step length (D10) and per-run initial
+  heading (D11). Figure: `figures/run1_particle_ble.png`.
+- **5d ✅ (done):** floor transitions — the full filter. Added per-particle floor,
+  `maybe_change_floor` (staircase-gated stochastic flips), `estimate_floor`,
+  `systematic_resample_indices`, and `run_filter`; added
+  `visualization.plot_floor_over_time` and `plot_trajectory_two_floors`. Floor
+  accuracy averages ~0.66 (0.47–0.88); floor handling changes position error only
+  slightly. Limitations (position drift starving the floor logic, floor locking
+  between staircases, coarse BLE) are documented in D12 and are the ablation/
+  discussion material for M6. Figures: `figures/run1_filter_floor.png`,
+  `figures/run1_filter_two_floors.png`. See decision D12.
+
+**M5 is complete.** The end-to-end filter (`run_filter`) fuses motion, BLE, and
+building constraints across both floors. Accuracy is realistic for a coarse indoor
+system; the quantitative evaluation and ablations follow in M6.
 
 ---
 

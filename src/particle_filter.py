@@ -5,7 +5,7 @@ particle_filter.py
 The particle filter: the core that estimates position over time by fusing the
 IMU motion model, the BLE observations, and the building constraints.
 
-This file currently implements sub-steps 5a and 5b on a single floor:
+This file builds the particle filter in four sub-steps:
 
     - 5a (run_motion_only): move a cloud of particles using the per-step motion
       table (from imu.py) and report the cloud's mean over time. No correction,
@@ -14,14 +14,15 @@ This file currently implements sub-steps 5a and 5b on a single floor:
       step, particles are weighted by how walkable their position is, the estimate
       is the weighted mean, and the cloud is resampled when a few particles start
       to dominate. This keeps the estimate on the corridors.
+    - 5c (run_with_ble): multiply in the BLE observation likelihood (ble.py) as an
+      extra weight whenever a reading arrives, giving the absolute reference that
+      corrects heading drift.
+    - 5d (run_filter): the full filter. Each particle also carries a floor, and may
+      switch floor only inside a staircase zone; the BLE update then keeps whichever
+      particles guessed the right floor. This is the end-to-end fusion.
 
-There is still no BLE correction and no floor change yet -- those are added in the
-later sub-steps (5c, 5d). The weighting-and-resampling machinery added here is the
-same one 5c reuses: 5c simply multiplies in the BLE likelihood as a second weight.
-
-For now a particle is just its position (x, y); heading is taken fresh from the
-motion table on each step. Persistent per-particle heading and floor are added in
-the later sub-steps that need them.
+A particle is its position (x, y) plus, from 5d, a floor. Heading is taken fresh
+from the motion table on each step (with noise), so it is not stored per particle.
 
 This module does NOT load or parse data and does NOT draw plots.
 """
@@ -42,6 +43,11 @@ START_SPREAD_M = 0.5
 # stay on the corridor when resampling. A sweep over the four runs found ~0.1 m
 # works best (see docs/decisions.md, D9); wider walls constrain too weakly.
 WALL_SIGMA_M = 0.1
+
+# Per-step probability that a particle inside a staircase zone switches floor.
+# Small enough to avoid constant flip-flopping, large enough to let the cloud
+# change floor during the few steps spent in a staircase (see decision D12).
+FLOOR_CHANGE_PROB = 0.15
 
 
 def initialise_particles(start, n_particles, rng, spread=START_SPREAD_M):
@@ -205,19 +211,29 @@ def effective_sample_size(weights):
     return 1.0 / np.sum(normalised ** 2)
 
 
-def resample(x, y, weights, rng):
+def systematic_resample_indices(weights, rng):
     """
-    Systematic resampling.
+    Return the particle indices chosen by systematic resampling.
 
-    Draw a new set of particles in proportion to their weights, so likely
-    positions are duplicated and unlikely ones are dropped. Systematic resampling
-    uses a single random offset and evenly spaced sample points, which is simple
-    and keeps the sample well spread. The returned particles are unweighted again.
+    Systematic resampling uses a single random offset and evenly spaced sample
+    points, which is simple and keeps the sample well spread. Returning indices
+    (rather than the resampled arrays) lets the caller apply the same selection to
+    several per-particle arrays at once (x, y, and later floor).
     """
-    n = len(x)
+    n = len(weights)
     positions = (rng.random() + np.arange(n)) / n
     cumulative = np.cumsum(weights / weights.sum())
-    indices = np.searchsorted(cumulative, positions)
+    return np.searchsorted(cumulative, positions)
+
+
+def resample(x, y, weights, rng):
+    """
+    Resample the (x, y) particles in proportion to their weights.
+
+    Likely positions are duplicated and unlikely ones are dropped; the returned
+    particles are unweighted again.
+    """
+    indices = systematic_resample_indices(weights, rng)
     return x[indices], y[indices]
 
 
@@ -285,5 +301,225 @@ def run_with_constraints(run, motion_table, start, building, floor=0,
             n_resamples += 1
 
     trajectory = pd.DataFrame({"t_rel": times, "x": xs, "y": ys})
+    spread = pd.Series(spreads, name="spread")
+    return trajectory, spread, n_resamples
+
+
+# ---------------------------------------------------------------------------
+# 5c: BLE correction (sensor fusion)
+#
+# The map constraint alone cannot fix heading drift, because it has no absolute
+# reference. Here we add one: whenever a BLE reading arrives, we multiply each
+# particle's weight by the BLE observation likelihood (ble.py) -- how well that
+# particle's position explains the observed RSSI. Strong readings pull the cloud
+# firmly toward the beacon, correcting the drift.
+#
+# This is the same loop as run_with_constraints, with just one addition: the BLE
+# readings that fall inside each step interval are applied as extra weight
+# factors. BLE is event-driven, so a reading only affects the estimate at the
+# moment it actually arrives.
+# ---------------------------------------------------------------------------
+
+
+def run_with_ble(run, motion_table, start, building, ble, floor=0,
+                 n_particles=500, seed=0, length_sigma=STEP_LENGTH_SIGMA_M,
+                 wall_sigma=WALL_SIGMA_M):
+    """
+    Motion + building constraints + BLE correction on a single floor (5c).
+
+    Parameters
+    ----------
+    run : Run
+        Provides the BLE stream (run.ble).
+    motion_table : DataFrame
+        Per-step motion from imu.py.
+    start : (x, y)
+        Known start position in world metres.
+    building : module
+        Building model (corridor constraint + beacon positions).
+    ble : module
+        BLE model, used for its rssi_likelihood function.
+    floor : int
+        Which floor the particles are on (single floor for 5c).
+
+    Returns
+    -------
+    trajectory : DataFrame with columns t_rel, x, y
+    spread : Series
+    n_resamples : int
+    """
+    rng = np.random.default_rng(seed)
+    x, y = initialise_particles(start, n_particles, rng)
+    particle_floor = np.full(n_particles, floor)
+
+    beacon_positions = building.beacon_positions()
+
+    # The BLE readings as plain arrays, walked through in time order.
+    ble_t = run.ble["t_rel"].values
+    ble_beacon = run.ble["beacon"].values
+    ble_rssi = run.ble["rssi"].values
+    ble_index = 0
+
+    times = []
+    xs = []
+    ys = []
+    spreads = []
+    n_resamples = 0
+    for step in motion_table.itertuples(index=False):
+        x, y = predict(x, y, step, rng, length_sigma)
+
+        weights = constraint_weights(x, y, floor, building, wall_sigma)
+
+        # Apply every BLE reading that has arrived up to this step's time.
+        while ble_index < len(ble_t) and ble_t[ble_index] <= step.t_rel:
+            position = beacon_positions.get(ble_beacon[ble_index])
+            if position is not None:
+                weights = weights * ble.rssi_likelihood(
+                    x, y, particle_floor, position, ble_rssi[ble_index])
+            ble_index += 1
+
+        # Weighted-mean estimate, with the same all-zero-weight guard as 5b.
+        if weights.sum() > 0:
+            estimate_x = np.average(x, weights=weights)
+            estimate_y = np.average(y, weights=weights)
+        else:
+            estimate_x, estimate_y = estimate(x, y)
+
+        times.append(step.t_rel)
+        xs.append(estimate_x)
+        ys.append(estimate_y)
+        spreads.append(cloud_spread(x, y))
+
+        if weights.sum() > 0 and effective_sample_size(weights) < n_particles / 2:
+            x, y = resample(x, y, weights, rng)
+            n_resamples += 1
+
+    trajectory = pd.DataFrame({"t_rel": times, "x": xs, "y": ys})
+    spread = pd.Series(spreads, name="spread")
+    return trajectory, spread, n_resamples
+
+
+# ---------------------------------------------------------------------------
+# 5d: floor transitions (the full filter)
+#
+# A person can only move between floors at a staircase. We give each particle a
+# floor and let it switch floor -- only when it is inside a staircase zone -- with
+# a small probability each step. This creates competing floor hypotheses at the
+# staircases; the BLE update then keeps whichever particles are on the floor whose
+# beacons match the reading, and the map keeps them on the corridor. No barometer
+# or explicit stair detection is needed: the filter resolves the floor itself.
+# ---------------------------------------------------------------------------
+
+
+def maybe_change_floor(x, y, floor, building, rng, p=FLOOR_CHANGE_PROB):
+    """
+    Let particles switch floor, but only inside a staircase zone.
+
+    For each particle in a staircase zone (building.can_change_floor), flip its
+    floor (0<->1) with probability p. Particles elsewhere keep their floor. The BLE
+    update then keeps whichever particles are on the floor whose beacons match the
+    reading, so the filter resolves the floor itself.
+
+    Returns
+    -------
+    A new floor array (the input is not modified).
+    """
+    floor = floor.copy()
+    for i in range(len(x)):
+        if building.can_change_floor(x[i], y[i]) and rng.random() < p:
+            floor[i] = 1 - floor[i]
+    return floor
+
+
+def estimate_floor(floor, weights):
+    """Weighted majority floor (0 or 1)."""
+    return int(round(np.average(floor, weights=weights)))
+
+
+def run_filter(run, motion_table, start, floor, building, ble,
+               n_particles=500, seed=0, length_sigma=STEP_LENGTH_SIGMA_M,
+               wall_sigma=WALL_SIGMA_M, floor_change_prob=FLOOR_CHANGE_PROB):
+    """
+    The full particle filter: motion + building constraints + BLE + floor changes.
+
+    This is run_with_ble plus a per-particle floor that may change at staircases.
+
+    Parameters
+    ----------
+    run : Run
+        Provides the BLE stream (run.ble).
+    motion_table : DataFrame
+        Per-step motion from imu.py (built with the run's initial heading).
+    start : (x, y)
+        Known start position in world metres.
+    floor : int
+        Floor the person starts on (all particles start here).
+    building : module
+        Building model (corridor constraint, staircases, beacon positions).
+    ble : module
+        BLE model, used for its rssi_likelihood function.
+
+    Returns
+    -------
+    trajectory : DataFrame with columns t_rel, x, y, floor
+    spread : Series
+    n_resamples : int
+    """
+    rng = np.random.default_rng(seed)
+    x, y = initialise_particles(start, n_particles, rng)
+    particle_floor = np.full(n_particles, floor)
+
+    beacon_positions = building.beacon_positions()
+
+    ble_t = run.ble["t_rel"].values
+    ble_beacon = run.ble["beacon"].values
+    ble_rssi = run.ble["rssi"].values
+    ble_index = 0
+
+    times = []
+    xs = []
+    ys = []
+    floors = []
+    spreads = []
+    n_resamples = 0
+    for step in motion_table.itertuples(index=False):
+        x, y = predict(x, y, step, rng, length_sigma)
+        particle_floor = maybe_change_floor(x, y, particle_floor, building, rng,
+                                            floor_change_prob)
+
+        # Both floors share the same corridor footprint, so walkability does not
+        # depend on the floor; we evaluate the map constraint once.
+        weights = constraint_weights(x, y, floor, building, wall_sigma)
+
+        # Apply every BLE reading up to this step's time, now using each particle's
+        # own floor so cross-floor beacons are correctly penalised.
+        while ble_index < len(ble_t) and ble_t[ble_index] <= step.t_rel:
+            position = beacon_positions.get(ble_beacon[ble_index])
+            if position is not None:
+                weights = weights * ble.rssi_likelihood(
+                    x, y, particle_floor, position, ble_rssi[ble_index])
+            ble_index += 1
+
+        if weights.sum() > 0:
+            estimate_x = np.average(x, weights=weights)
+            estimate_y = np.average(y, weights=weights)
+            estimate_fl = estimate_floor(particle_floor, weights)
+        else:
+            estimate_x, estimate_y = estimate(x, y)
+            estimate_fl = int(round(particle_floor.mean()))
+
+        times.append(step.t_rel)
+        xs.append(estimate_x)
+        ys.append(estimate_y)
+        floors.append(estimate_fl)
+        spreads.append(cloud_spread(x, y))
+
+        if weights.sum() > 0 and effective_sample_size(weights) < n_particles / 2:
+            indices = systematic_resample_indices(weights, rng)
+            x, y = x[indices], y[indices]
+            particle_floor = particle_floor[indices]
+            n_resamples += 1
+
+    trajectory = pd.DataFrame({"t_rel": times, "x": xs, "y": ys, "floor": floors})
     spread = pd.Series(spreads, name="spread")
     return trajectory, spread, n_resamples

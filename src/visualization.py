@@ -159,7 +159,7 @@ def plot_particle_cloud(trajectory, spread, dead_reckoning=None,
 
 
 def plot_trajectory_on_corridor(trajectory, corridor_polyline, half_width,
-                                run_id=None, ax=None):
+                                beacons=None, run_id=None, ax=None):
     """
     Plot an estimated trajectory on top of the corridor.
 
@@ -176,6 +176,9 @@ def plot_trajectory_on_corridor(trajectory, corridor_polyline, half_width,
         The corridor centre-line, e.g. from building.corridor_polyline(floor).
     half_width : float
         Corridor half-width in metres (used in the title).
+    beacons : dict, optional
+        Beacon name -> (x, y, floor). If given, the beacons are drawn as markers
+        so the BLE anchors are visible. Pass only the beacons for this floor.
     """
     if ax is None:
         _, ax = plt.subplots(figsize=(9, 5))
@@ -188,6 +191,16 @@ def plot_trajectory_on_corridor(trajectory, corridor_polyline, half_width,
             linewidth=16, alpha=0.5, solid_capstyle="round", zorder=0)
     ax.plot(corridor_x, corridor_y, "--", color="gray", linewidth=1.0,
             zorder=1, label="corridor centre-line")
+
+    if beacons is not None:
+        beacon_x = [position[0] for position in beacons.values()]
+        beacon_y = [position[1] for position in beacons.values()]
+        ax.scatter(beacon_x, beacon_y, marker="^", color="darkorange",
+                   s=70, zorder=4, label="beacons")
+        for name, (bx, by, _) in beacons.items():
+            ax.annotate(name.replace("arrive_", ""), (bx, by),
+                        textcoords="offset points", xytext=(0, 7),
+                        fontsize=8, ha="center", color="darkorange")
 
     ax.plot(trajectory["x"], trajectory["y"], "-", color="steelblue",
             linewidth=1.2, zorder=2, label="estimated trajectory")
@@ -205,3 +218,81 @@ def plot_trajectory_on_corridor(trajectory, corridor_polyline, half_width,
     ax.set_aspect("equal")
     ax.legend(loc="upper right")
     return ax
+
+
+def _draw_corridor(ax, corridor_polyline):
+    """Draw the corridor centre-line and a schematic width band on an axis."""
+    corridor_x = [point[0] for point in corridor_polyline]
+    corridor_y = [point[1] for point in corridor_polyline]
+    ax.plot(corridor_x, corridor_y, "-", color="lightsteelblue",
+            linewidth=16, alpha=0.5, solid_capstyle="round", zorder=0)
+    ax.plot(corridor_x, corridor_y, "--", color="gray", linewidth=1.0, zorder=1)
+
+
+def plot_floor_over_time(trajectory, reference=None, run_id=None, ax=None):
+    """
+    Plot the estimated floor over time, with the reference checkpoint floors.
+
+    The estimated floor is a step line (0 or 1); the reference checkpoints are
+    drawn as dots, so it is easy to see whether the filter switches floor at the
+    right moments.
+    """
+    if ax is None:
+        _, ax = plt.subplots(figsize=(12, 2.5))
+
+    ax.step(trajectory["t_rel"], trajectory["floor"], where="post",
+            color="steelblue", linewidth=1.5, label="estimated floor")
+
+    if reference is not None:
+        known = reference[reference["floor"].notna()]
+        ax.scatter(known["t_rel"], known["floor"], color="red", s=25, zorder=3,
+                   label="reference checkpoints")
+
+    ax.set_yticks([0, 1])
+    ax.set_yticklabels(["floor 0", "floor 1"])
+    ax.set_ylim(-0.3, 1.3)
+    title = "Estimated floor over time"
+    if run_id is not None:
+        title += " (Run %d)" % run_id
+    ax.set_title(title)
+    ax.set_xlabel("time since run start (s)")
+    ax.legend(loc="center right")
+    return ax
+
+
+def plot_trajectory_two_floors(trajectory, corridor_polyline, half_width,
+                               beacons=None, run_id=None):
+    """
+    Plot the estimated trajectory split across the two floors.
+
+    One panel per floor shows the corridor and the estimated positions that were
+    assigned to that floor (as dots, since a floor can be visited in more than one
+    separate segment). Beacons for each floor are marked if provided.
+    """
+    fig, axes = plt.subplots(2, 1, figsize=(9, 7))
+    for floor_index, ax in zip([1, 0], axes):   # floor 1 on top, floor 0 below
+        _draw_corridor(ax, corridor_polyline)
+
+        segment = trajectory[trajectory["floor"] == floor_index]
+        ax.scatter(segment["x"], segment["y"], s=8, color="steelblue",
+                   zorder=2, label="estimate on floor %d" % floor_index)
+
+        if beacons is not None:
+            floor_beacons = {name: pos for name, pos in beacons.items()
+                             if pos[2] == floor_index}
+            if floor_beacons:
+                bx = [pos[0] for pos in floor_beacons.values()]
+                by = [pos[1] for pos in floor_beacons.values()]
+                ax.scatter(bx, by, marker="^", color="darkorange", s=70,
+                           zorder=4, label="beacons")
+
+        ax.set_title("Floor %d" % floor_index)
+        ax.set_ylabel("y (m)")
+        ax.set_aspect("equal")
+        ax.legend(loc="upper right", fontsize=8)
+    axes[-1].set_xlabel("x (m) — east")
+
+    if run_id is not None:
+        fig.suptitle("Estimated trajectory by floor (Run %d)" % run_id)
+    fig.tight_layout()
+    return fig

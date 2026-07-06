@@ -240,3 +240,50 @@ heading error.
 
 **Status:** Confirmed. Values stored in `preprocessing.RUN_START`; the constants
 depend only on the (stable) heading-estimation code, not on step length.
+
+---
+
+## D12 — Floor transitions: staircase-gated stochastic flips + BLE selection (5d)
+
+**Decision:** Complete the particle filter (`run_filter`) by giving each particle a
+**floor** and letting it switch floor (0↔1), with probability
+`FLOOR_CHANGE_PROB = 0.15` per step, **only while inside a staircase zone**
+(`building.can_change_floor`). The BLE update then keeps whichever particles are on
+the floor whose beacons match the reading. No barometer or explicit stair detection
+is used — the filter resolves the floor itself. This is the particle-filter-native
+approach the assignment points to (invalid states are simply down-weighted).
+
+**Why this design:** it is simple, reuses the existing predict/weight/resample
+machinery (only the floor array and a staircase-gated flip are added), and keeps
+floor changes physically constrained to staircases.
+
+**Results (full filter, all reference checkpoints):**
+
+| Run | Floor accuracy | Door error (5c 1-floor → 5d) |
+|-----|----------------|-------------------------------|
+| 1 | 0.47 | 6.7 → 6.3 m |
+| 2 | 0.88 | 15.3 → 15.2 m |
+| 3 | 0.71 | 12.5 → 12.1 m |
+| 4 | 0.60 | 14.9 → 14.9 m |
+
+Floor accuracy averages ~0.66; floor handling changes position error only slightly.
+
+**Honest limitations (evaluation material, M6):**
+- **Position drift starves the floor logic.** When the estimated position falls
+  short of a staircase zone (Run 1 only reaches x≈24, not the east staircase at
+  x=35), the cloud cannot create the floor-1 hypotheses the BLE update would keep.
+- **Floor locks between staircases** (physically correct), so an early wrong lock
+  persists. A run that *starts* on a staircase with no BLE yet (Run 1, west
+  staircase) can flip early and stay wrong until the next staircase.
+- **BLE is too coarse** (~50% nearest-beacon) to both correct drift and drive the
+  floor cleanly.
+
+An attempted "must leave the start staircase before flipping" gate was tried and
+**rejected**: it broke runs that legitimately change floor immediately (Run 4
+ascends at the start), lowering average floor accuracy. A better future option is
+BLE-gated flips (bias toward the currently strongest floor), noted for M6/future
+work.
+
+**Status:** Confirmed. M5 complete. Filter is deterministic under a fixed seed and
+runs on all four runs; accuracy is realistic for a coarse indoor system, as the
+assignment expects.
