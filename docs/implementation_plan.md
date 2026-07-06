@@ -141,9 +141,14 @@ reference timestamps as ground truth.
 the per-step motion table, and a dead-reckoning diagnostic are implemented and
 run on all four runs (cadence ~1.4 steps/s). As expected, dead reckoning drifts
 over a few minutes because of residual heading error — this is the motivation for
-the map/BLE correction in M5. Step length is currently a constant (0.7 m) and
-heading is anchored to the start direction; both can be refined during filter
-tuning if needed.
+the map/BLE correction in M5.
+
+**Calibration (added during M5 bring-up):** the constant step length was
+recalibrated from known corridor legs, **0.7 m → 0.5 m** (see decision D10); the
+0.7 m value made the estimated path ~1.7× too long and dominated the filter error.
+A second boundary condition, the per-run **initial heading**, is being set from the
+known start direction (Run 3 starts west, etc.) — orchestration-layer parameters,
+not new algorithm code.
 
 
 **Objective:** convert raw IMU into per-step movement vectors (how far, which

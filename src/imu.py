@@ -199,7 +199,7 @@ def heading_from_gyro(gyro, gravity_direction, initial_heading=0.0,
     return pd.DataFrame({"t_rel": gyro["t_rel"].values, "heading": heading.values})
 
 
-def build_motion_table(run, step_length=0.7, initial_heading=0.0,
+def build_motion_table(run, step_length=0.5, initial_heading=0.0,
                        heading_sigma_deg=15.0):
     """
     Build the per-step motion table used by the filter later.
@@ -214,6 +214,9 @@ def build_motion_table(run, step_length=0.7, initial_heading=0.0,
         A loaded run (uses its accel and gyro streams).
     step_length : float
         Assumed distance covered per step, in metres (kept constant for now).
+        The default 0.5 m was calibrated against known corridor legs in the
+        reference data (implied ~0.40-0.53 m per step on Runs 1, 3, 4); the
+        earlier 0.7 m made the estimated path ~1.7x too long. See decisions D10.
     initial_heading : float
         Heading at the start of the run, in radians (0 = east). Anchors the
         otherwise relative gyro heading to the known start direction.

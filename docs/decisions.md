@@ -164,3 +164,41 @@ have the largest accumulated drift.
 **Status:** 5b confirmed. `run_with_constraints` takes a tunable `wall_sigma`
 (default 0.1); resampling is active, results are deterministic under a fixed seed,
 and the estimate is markedly more walkable than 5a on all four runs.
+
+---
+
+## D10 — Step length calibrated to ~0.5 m (motion-model scale fix)
+
+**Decision:** Change the constant step length in `imu.build_motion_table` from the
+initial guess **0.70 m to 0.50 m**, calibrated against known corridor legs in the
+reference data.
+
+**Why:** While bringing up the BLE filter (5c) the estimated path was far too
+long. Measuring a clean, straight, single-floor leg against the door references:
+
+| Run | Leg (floor 0) | Distance | Steps | Implied step length |
+|-----|---------------|----------|-------|---------------------|
+| 1 | 024→018 | 27.0 m | 67 | 0.40 m |
+| 2 | 021→018 | 13.5 m | 13 | 1.04 m (outlier — under-counted steps) |
+| 3 | 018→024 | 27.0 m | 53 | 0.51 m |
+| 4 | 024→018 | 27.0 m | 51 | 0.53 m |
+
+The reliable runs (1, 3, 4) cluster at 0.40–0.53 m; Run 2 is an outlier (only 13
+steps on a short leg). At 0.70 m the Run 1 path was 1.74× too long, which made the
+particle cloud overshoot every corridor and beacon. A single calibrated constant
+**0.50 m** roughly halved the door-checkpoint error on every run (e.g. Run 1 5b:
+13.0 → 3.6 m; Run 4 5b: 97.8 → 19.7 m).
+
+**Choice of a global constant** (not per-run) keeps it simple and avoids `imu.py`
+depending on the door references. Per-run stride calibration is a possible later
+refinement (the runs may be different walkers).
+
+**Known follow-up:** a second motion-model boundary condition, the per-run
+**initial heading**, still defaults to 0 (east) for every run. Runs that do not
+start walking east (e.g. Run 3 starts west) launch in the wrong direction; setting
+Run 3's initial heading to π cut its early-leg error 19.4 → 11.1 m. This is fixed
+next, in the orchestration layer (start position + heading are known, fixable
+boundary conditions per the assignment).
+
+**Status:** Confirmed (M3 refinement). Step length is still a tunable parameter of
+`build_motion_table`.
