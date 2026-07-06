@@ -52,7 +52,7 @@ corridors on two floors, with non-linear map constraints and noisy RSSI.
 | M1 | Preprocessing pipeline             | ✅ Done        | `imu.py`, `ble.py`, `preprocessing.py`  |
 | M2 | Building model & reference data    | ✅ Done        | `building.py`, `evaluation.py` (loader) |
 | M3 | IMU motion model                   | ✅ Done        | `imu.py`                                |
-| M4 | BLE observation model              | ⬜ Planned     | `ble.py`                                |
+| M4 | BLE observation model              | ✅ Done        | `ble.py`                                |
 | M5 | Particle filter (core fusion)      | ⬜ Planned     | `particle_filter.py`                    |
 | M6 | Evaluation & experiments           | ⬜ Planned     | `evaluation.py`, `visualization.py`     |
 | M7 | Notebook assembly & related work   | ⬜ Planned     | `notebooks/`                            |
@@ -176,7 +176,15 @@ direction) — the motion input to the filter.
 
 ---
 
-### M4 — BLE observation model  ⬜
+### M4 — BLE observation model  ✅ (done)
+
+**Status note:** implemented in `ble.py` as a log-distance path-loss likelihood
+(`expected_rssi` + `rssi_likelihood`, decision D7). Strong RSSI weights particles
+tightly onto a beacon, weak RSSI is barely discriminating, and a floor mismatch is
+a soft penalty. Sanity check (all four runs): `arrive_emi4` is the strongest beacon
+at door 018 every time; strongest-beacon floor accuracy 64–87% and nearest-beacon
+match 48–60% — above chance but coarse, exactly the ambiguity that fusion resolves.
+The model is a pure function (positions passed in); it is wired into the filter in M5.
 
 **Objective:** turn RSSI readings into position evidence, weighting strong
 signals more than weak ones (assignment requirement).

@@ -115,19 +115,22 @@ list to keep responsibilities from leaking across files.
 - **Depends on:** numpy, pandas, scipy.signal.
 - **Does NOT:** touch BLE, building, or filtering logic.
 
-### 3.3 `ble.py` — BLE loading + observation model 🟡
+### 3.3 `ble.py` — BLE loading + observation model ✅
 
 - **Responsibility:** clean BLE readings and turn RSSI into position evidence.
 - **Key functions:**
   - `is_project_beacon`, `extract_ble_stream` — keep project beacons, raw RSSI,
     shared `t_rel`. ✅
-  - *(planned)* `rssi_likelihood(particle_positions, observation, beacon_pos)` —
-    weight particles by how well their position explains the observed RSSI, with
-    stronger RSSI weighted more. ⬜
-- **Inputs:** `ble_rssi` rows (from `preprocessing.py`); beacon positions from
-  `building.py`.
-- **Outputs:** clean BLE stream; observation-likelihood function.
-- **Depends on:** pandas (and `building.py` for beacon positions, at model time).
+  - `expected_rssi(distance)` — log-distance path-loss expected RSSI. ✅
+  - `rssi_likelihood(particle_x, particle_y, particle_floor, beacon_position,
+    observed_rssi)` — weight particles by how well their position explains the
+    observed RSSI (Gaussian on the RSSI residual), stronger RSSI weighted more,
+    soft floor-mismatch penalty. Vectorised over particles. ✅
+- **Inputs:** `ble_rssi` rows (from `preprocessing.py`); the observed beacon's
+  `(x, y, floor)` position, passed in by the caller (from `building.py`).
+- **Outputs:** clean BLE stream; per-particle weights for one RSSI reading.
+- **Depends on:** numpy, pandas. (Beacon positions are passed in, so `ble.py`
+  does not import `building.py`.)
 - **Does NOT:** process IMU, run the filter, or plot.
 
 ### 3.4 `building.py` — building model & constraints ⬜

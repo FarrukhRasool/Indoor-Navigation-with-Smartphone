@@ -80,3 +80,27 @@ filter using the building map and BLE. The magnetometer is avoided as the primar
 source because indoor magnetic fields are unreliable.
 
 **Status:** Confirmed (M3).
+
+---
+
+## D7 — BLE observation model: log-distance path-loss likelihood
+
+**Decision:** Turn each RSSI reading into a particle weight with the standard
+**log-distance path-loss** model: the expected RSSI at a particle is
+`RSSI_AT_1M - 10 · n · log10(distance)`, and the weight is a Gaussian on the
+difference between the observed and expected RSSI. A floor mismatch adds a soft
+distance penalty rather than a hard zero (staircase signal bleed). Parameters are
+nominal constants at the top of `ble.py` and tunable during filter work.
+
+**Why:**
+- It is the textbook BLE indoor-positioning model, so it is easy to justify and
+  cite in the related-work section.
+- "Weight strong signals more" falls out for free: a strong RSSI is only
+  explained by particles close to the beacon (very discriminating), while a weak
+  RSSI is explained by a large far-away region (barely discriminating).
+- Simple to compute in the RSSI domain; no need to invert RSSI into a distance.
+
+**Status:** Confirmed (M4). Sanity check: `arrive_emi4` is the strongest beacon at
+door 018 in all runs; strongest-beacon floor accuracy 64–87% and nearest-beacon
+match 48–60% (both above the ~33% chance level) — coarse but real, as expected for
+BLE, which is why fusion with IMU and the map is needed.
