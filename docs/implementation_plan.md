@@ -253,7 +253,16 @@ over time. **This is the graded core.**
   tracks the M3 dead-reckoning path (mean gap 1.1–2.4 m), the spread grows from
   ~0.7 m to ~3.8–4.4 m, and results are deterministic under a fixed seed on all
   four runs. Figure: `figures/run1_particle_motion_only.png`. See decision D8.
-- 5b, 5c, 5d: not started.
+- **5b ✅ (done):** building-constrained filter. Added `distance_to_corridor` to
+  `building.py`; added `constraint_weights`, `effective_sample_size`, systematic
+  `resample`, and `run_with_constraints` (tunable `wall_sigma`, default 0.1) to
+  `particle_filter.py`; added `visualization.plot_trajectory_on_corridor`. A soft
+  wall (D9) plus resampling snaps the cloud onto the corridor: walkability of the
+  estimate roughly doubles vs 5a (Run 1: 0.04 → 0.23). Confirmed that the map
+  alone cannot correct heading drift — it damps but does not fix the late-run
+  excursion — which motivates the BLE update in 5c. Figure:
+  `figures/run1_particle_constrained.png`. See decision D9.
+- 5c, 5d: not started.
 
 ---
 

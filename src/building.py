@@ -76,6 +76,21 @@ def _distance_point_to_segment(px, py, ax, ay, bx, by):
     return math.hypot(px - nearest_x, py - nearest_y)
 
 
+def distance_to_corridor(x, y, floor):
+    """
+    Shortest distance from (x, y) to the corridor centre-line of a floor.
+
+    Zero on the centre-line, growing as the point moves away from it. This is the
+    building's single source of truth for "how far off the corridor is a point",
+    used both by is_walkable and by the particle filter's soft wall constraint.
+    """
+    polyline = corridor_polyline(floor)
+    distances = []
+    for (ax, ay), (bx, by) in zip(polyline, polyline[1:]):
+        distances.append(_distance_point_to_segment(x, y, ax, ay, bx, by))
+    return min(distances)
+
+
 def is_walkable(x, y, floor):
     """
     Return True if (x, y) on the given floor lies inside a corridor.
@@ -83,11 +98,7 @@ def is_walkable(x, y, floor):
     A point is walkable if it is within the corridor half-width of the
     centre-line poly-line.
     """
-    polyline = corridor_polyline(floor)
-    distances = []
-    for (ax, ay), (bx, by) in zip(polyline, polyline[1:]):
-        distances.append(_distance_point_to_segment(x, y, ax, ay, bx, by))
-    return min(distances) <= CORRIDOR_HALF_WIDTH_M
+    return distance_to_corridor(x, y, floor) <= CORRIDOR_HALF_WIDTH_M
 
 
 def can_change_floor(x, y):

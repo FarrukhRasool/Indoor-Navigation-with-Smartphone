@@ -129,3 +129,38 @@ from the M3 motion table and moves. The point estimate is the cloud mean.
 1.1–2.4 m, growing with step count — the expected contraction from averaging over
 heading noise), the cloud spread grows from ~0.7 m to ~3.8–4.4 m, and the result
 is deterministic under a fixed seed on all four runs.
+
+---
+
+## D9 — Building constraint: narrow soft wall (5b)
+
+**Decision:** In sub-step 5b, weight each particle by walkability using a soft
+wall — `weight = exp(-½·(overshoot / wall_sigma)²)` where
+`overshoot = max(0, distance_to_corridor − half_width)` — then resample
+(systematic) when the effective sample size drops below half. After a sweep over
+all four runs, set **`wall_sigma = 0.1 m`**, which acts as a nearly hard wall.
+
+**Why:**
+- A soft formulation avoids the all-zero-weight collapse in principle, and reads
+  cleanly (one expression, no special-casing), but the sweep showed that a
+  **narrow** wall works best: walkability of the estimate roughly doubled going
+  from `wall_sigma = 0.5` to `0.1` (e.g. Run 1: 0.12 → 0.23; four-run mean
+  0.08 → 0.12), and kept improving down to ~0.05 with diminishing returns. A wide
+  wall keeps off-corridor particles alive and constrains too weakly.
+- The narrow value gives strong selective pressure during resampling to keep the
+  cloud on the corridor, while a hair of gradient (plus the plain-mean guard when
+  every weight underflows to zero) avoids the pathologies of a pure hard cut.
+
+**Honest limitation (important for the evaluation):** the map constraint alone
+cannot correct **heading drift**. On the portion of a run where the gyro heading
+is still reliable, the constrained estimate tracks the corridor well (Run 1's
+first eastward traversal sits inside the corridor band); once heading drift
+accumulates, the whole cloud leaves the corridor and the map can only damp the
+excursion, not fix the direction. This is exactly the ablation result the
+assignment asks for and the motivation for the BLE update in 5c: an **absolute**
+reference is needed to correct drift. Walkability stays low on Runs 3/4, which
+have the largest accumulated drift.
+
+**Status:** 5b confirmed. `run_with_constraints` takes a tunable `wall_sigma`
+(default 0.1); resampling is active, results are deterministic under a fixed seed,
+and the estimate is markedly more walkable than 5a on all four runs.

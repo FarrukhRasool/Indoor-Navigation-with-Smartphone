@@ -156,3 +156,52 @@ def plot_particle_cloud(trajectory, spread, dead_reckoning=None,
     ax.set_aspect("equal")
     ax.legend(loc="upper right")
     return ax
+
+
+def plot_trajectory_on_corridor(trajectory, corridor_polyline, half_width,
+                                run_id=None, ax=None):
+    """
+    Plot an estimated trajectory on top of the corridor.
+
+    The corridor is drawn as its centre-line plus a translucent thick band that
+    suggests the walkable width, so it is easy to see whether the estimate stays
+    on the corridor. The band is schematic (drawn in screen units, not exact
+    metres); the numeric walkable check is done in the analysis, not the plot.
+
+    Parameters
+    ----------
+    trajectory : DataFrame
+        Estimated trajectory (columns t_rel, x, y).
+    corridor_polyline : list of (x, y)
+        The corridor centre-line, e.g. from building.corridor_polyline(floor).
+    half_width : float
+        Corridor half-width in metres (used in the title).
+    """
+    if ax is None:
+        _, ax = plt.subplots(figsize=(9, 5))
+
+    corridor_x = [point[0] for point in corridor_polyline]
+    corridor_y = [point[1] for point in corridor_polyline]
+
+    # Schematic corridor band (thick, light) plus a crisp centre-line.
+    ax.plot(corridor_x, corridor_y, "-", color="lightsteelblue",
+            linewidth=16, alpha=0.5, solid_capstyle="round", zorder=0)
+    ax.plot(corridor_x, corridor_y, "--", color="gray", linewidth=1.0,
+            zorder=1, label="corridor centre-line")
+
+    ax.plot(trajectory["x"], trajectory["y"], "-", color="steelblue",
+            linewidth=1.2, zorder=2, label="estimated trajectory")
+    ax.scatter(trajectory["x"].iloc[0], trajectory["y"].iloc[0],
+               color="green", s=40, zorder=3, label="start")
+    ax.scatter(trajectory["x"].iloc[-1], trajectory["y"].iloc[-1],
+               color="red", s=40, zorder=3, label="end")
+
+    title = "Estimated trajectory on the corridor (half-width %.1f m)" % half_width
+    if run_id is not None:
+        title += " (Run %d)" % run_id
+    ax.set_title(title)
+    ax.set_xlabel("x (m) — east")
+    ax.set_ylabel("y (m) — north")
+    ax.set_aspect("equal")
+    ax.legend(loc="upper right")
+    return ax
