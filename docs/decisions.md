@@ -104,3 +104,28 @@ nominal constants at the top of `ble.py` and tunable during filter work.
 door 018 in all runs; strongest-beacon floor accuracy 64–87% and nearest-beacon
 match 48–60% (both above the ~33% chance level) — coarse but real, as expected for
 BLE, which is why fusion with IMU and the map is needed.
+
+---
+
+## D8 — Particle filter: incremental build, position-only state for 5a
+
+**Decision:** Build the particle filter (M5) in four sub-steps — 5a motion-only,
+5b add building constraints, 5c add BLE update + resample, 5d add floor
+transitions — instead of all at once. For **5a**, a particle is just its position
+`(x, y)` with a uniform weight; on each step every particle draws its own step
+length `Normal(step_length, 0.15 m)` and heading `Normal(heading, heading_sigma)`
+from the M3 motion table and moves. The point estimate is the cloud mean.
+
+**Why:**
+- Incremental sub-steps mean each new piece (map, BLE, floor changes) is added to
+  scaffolding already proven to run, which is easier to debug and to explain.
+- 5a validates the *predict* half of the filter against a known reference (the M3
+  dead-reckoning path) before any correction can mask a bug.
+- Persistent per-particle `heading` and `floor` (architecture §4.5) are only
+  needed once constraints and floor changes arrive, so they are deferred to the
+  later sub-steps to keep 5a minimal.
+
+**Status:** 5a confirmed. The filter mean tracks dead reckoning (mean gap
+1.1–2.4 m, growing with step count — the expected contraction from averaging over
+heading noise), the cloud spread grows from ~0.7 m to ~3.8–4.4 m, and the result
+is deterministic under a fixed seed on all four runs.

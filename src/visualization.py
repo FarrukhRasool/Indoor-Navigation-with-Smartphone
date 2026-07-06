@@ -101,3 +101,58 @@ def plot_dead_reckoning(trajectory, run_id=None, ax=None):
     ax.set_aspect("equal")
     ax.legend(loc="upper right")
     return ax
+
+
+def plot_particle_cloud(trajectory, spread, dead_reckoning=None,
+                        run_id=None, ax=None, n_rings=6):
+    """
+    Plot the motion-only particle-filter estimate.
+
+    Shows the estimated (mean) trajectory and the growing motion uncertainty as
+    circles whose radius is the cloud spread at that point. If a dead-reckoning
+    path is given, it is drawn too: with no correction the filter mean should sit
+    almost on top of it.
+
+    Parameters
+    ----------
+    trajectory : DataFrame
+        Filter estimate (columns t_rel, x, y).
+    spread : Series
+        Cloud spread (m) per step, aligned with `trajectory`.
+    dead_reckoning : DataFrame, optional
+        The M3 dead-reckoning path (columns t_rel, x, y) for comparison.
+    n_rings : int
+        How many uncertainty circles to draw along the path.
+    """
+    if ax is None:
+        _, ax = plt.subplots(figsize=(7, 7))
+
+    if dead_reckoning is not None:
+        ax.plot(dead_reckoning["x"], dead_reckoning["y"], "--",
+                color="gray", linewidth=1.0, label="dead reckoning (M3)")
+
+    ax.plot(trajectory["x"], trajectory["y"], "-",
+            color="steelblue", linewidth=1.2, label="particle mean")
+
+    # Uncertainty rings at a few evenly spaced points along the path.
+    ring_indices = np.linspace(0, len(trajectory) - 1, n_rings).astype(int)
+    for i in ring_indices:
+        circle = plt.Circle((trajectory["x"].iloc[i], trajectory["y"].iloc[i]),
+                            spread.iloc[i], color="steelblue",
+                            fill=False, alpha=0.4, linewidth=0.8)
+        ax.add_patch(circle)
+
+    ax.scatter(trajectory["x"].iloc[0], trajectory["y"].iloc[0],
+               color="green", s=40, zorder=3, label="start")
+    ax.scatter(trajectory["x"].iloc[-1], trajectory["y"].iloc[-1],
+               color="red", s=40, zorder=3, label="end")
+
+    title = "Motion-only particle filter (mean + spread)"
+    if run_id is not None:
+        title += " (Run %d)" % run_id
+    ax.set_title(title)
+    ax.set_xlabel("x (m) — east")
+    ax.set_ylabel("y (m) — north")
+    ax.set_aspect("equal")
+    ax.legend(loc="upper right")
+    return ax

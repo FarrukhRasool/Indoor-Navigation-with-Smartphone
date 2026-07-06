@@ -53,7 +53,7 @@ corridors on two floors, with non-linear map constraints and noisy RSSI.
 | M2 | Building model & reference data    | ✅ Done        | `building.py`, `evaluation.py` (loader) |
 | M3 | IMU motion model                   | ✅ Done        | `imu.py`                                |
 | M4 | BLE observation model              | ✅ Done        | `ble.py`                                |
-| M5 | Particle filter (core fusion)      | ⬜ Planned     | `particle_filter.py`                    |
+| M5 | Particle filter (core fusion)      | 🟡 In progress | `particle_filter.py`                    |
 | M6 | Evaluation & experiments           | ⬜ Planned     | `evaluation.py`, `visualization.py`     |
 | M7 | Notebook assembly & related work   | ⬜ Planned     | `notebooks/`                            |
 
@@ -245,6 +245,15 @@ over time. **This is the graded core.**
   noise; start simple (2D single floor) then add floor transitions.
 - **Suggested sub-steps:** (5a) single-floor PF with motion only → (5b) add
   building constraints → (5c) add BLE update → (5d) add floor transitions.
+
+**Progress:**
+- **5a ✅ (done):** motion-only single-floor filter in `particle_filter.py`
+  (`initialise_particles`, `predict`, `estimate`, `cloud_spread`,
+  `run_motion_only`) plus `visualization.plot_particle_cloud`. The cloud mean
+  tracks the M3 dead-reckoning path (mean gap 1.1–2.4 m), the spread grows from
+  ~0.7 m to ~3.8–4.4 m, and results are deterministic under a fixed seed on all
+  four runs. Figure: `figures/run1_particle_motion_only.png`. See decision D8.
+- 5b, 5c, 5d: not started.
 
 ---
 
