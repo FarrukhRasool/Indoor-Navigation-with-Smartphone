@@ -321,6 +321,41 @@ def run_with_constraints(run, motion_table, start, building, floor=0,
 # ---------------------------------------------------------------------------
 
 
+def ble_observations(run, beacon_positions):
+    """
+    Pre-compute the BLE readings as (t_rel, beacon_position, rssi) tuples in time
+    order, keeping only readings whose beacon has a known position. The filter loop
+    can then simply walk this list and apply each reading when its time is reached.
+    """
+    observations = []
+    for t_rel, beacon, rssi in zip(run.ble["t_rel"], run.ble["beacon"],
+                                   run.ble["rssi"]):
+        position = beacon_positions.get(beacon)
+        if position is not None:
+            observations.append((t_rel, position, rssi))
+    return observations
+
+
+def apply_ble_at_step(weights, x, y, particle_floor, observations, obs_index,
+                      step_t_rel, ble):
+    """
+    Multiply into `weights` the BLE likelihood of every reading up to step_t_rel.
+
+    Walks the pre-computed `observations` from `obs_index`, applying each reading
+    whose time has been reached. BLE is event-driven, so a reading only affects the
+    estimate at the moment it arrives.
+
+    Returns
+    -------
+    (weights, obs_index) : the updated weights and the advanced reading pointer.
+    """
+    while obs_index < len(observations) and observations[obs_index][0] <= step_t_rel:
+        _, position, rssi = observations[obs_index]
+        weights = weights * ble.rssi_likelihood(x, y, particle_floor, position, rssi)
+        obs_index += 1
+    return weights, obs_index
+
+
 def run_with_ble(run, motion_table, start, building, ble, floor=0,
                  n_particles=500, seed=0, length_sigma=STEP_LENGTH_SIGMA_M,
                  wall_sigma=WALL_SIGMA_M):
@@ -352,13 +387,8 @@ def run_with_ble(run, motion_table, start, building, ble, floor=0,
     x, y = initialise_particles(start, n_particles, rng)
     particle_floor = np.full(n_particles, floor)
 
-    beacon_positions = building.beacon_positions()
-
-    # The BLE readings as plain arrays, walked through in time order.
-    ble_t = run.ble["t_rel"].values
-    ble_beacon = run.ble["beacon"].values
-    ble_rssi = run.ble["rssi"].values
-    ble_index = 0
+    observations = ble_observations(run, building.beacon_positions())
+    obs_index = 0
 
     times = []
     xs = []
@@ -369,14 +399,8 @@ def run_with_ble(run, motion_table, start, building, ble, floor=0,
         x, y = predict(x, y, step, rng, length_sigma)
 
         weights = constraint_weights(x, y, floor, building, wall_sigma)
-
-        # Apply every BLE reading that has arrived up to this step's time.
-        while ble_index < len(ble_t) and ble_t[ble_index] <= step.t_rel:
-            position = beacon_positions.get(ble_beacon[ble_index])
-            if position is not None:
-                weights = weights * ble.rssi_likelihood(
-                    x, y, particle_floor, position, ble_rssi[ble_index])
-            ble_index += 1
+        weights, obs_index = apply_ble_at_step(
+            weights, x, y, particle_floor, observations, obs_index, step.t_rel, ble)
 
         # Weighted-mean estimate, with the same all-zero-weight guard as 5b.
         if weights.sum() > 0:
@@ -469,12 +493,8 @@ def run_filter(run, motion_table, start, floor, building, ble,
     x, y = initialise_particles(start, n_particles, rng)
     particle_floor = np.full(n_particles, floor)
 
-    beacon_positions = building.beacon_positions()
-
-    ble_t = run.ble["t_rel"].values
-    ble_beacon = run.ble["beacon"].values
-    ble_rssi = run.ble["rssi"].values
-    ble_index = 0
+    observations = ble_observations(run, building.beacon_positions())
+    obs_index = 0
 
     times = []
     xs = []
@@ -488,17 +508,11 @@ def run_filter(run, motion_table, start, floor, building, ble,
                                             floor_change_prob)
 
         # Both floors share the same corridor footprint, so walkability does not
-        # depend on the floor; we evaluate the map constraint once.
+        # depend on the floor; we evaluate the map constraint once. The BLE update
+        # now uses each particle's own floor, so cross-floor beacons are penalised.
         weights = constraint_weights(x, y, floor, building, wall_sigma)
-
-        # Apply every BLE reading up to this step's time, now using each particle's
-        # own floor so cross-floor beacons are correctly penalised.
-        while ble_index < len(ble_t) and ble_t[ble_index] <= step.t_rel:
-            position = beacon_positions.get(ble_beacon[ble_index])
-            if position is not None:
-                weights = weights * ble.rssi_likelihood(
-                    x, y, particle_floor, position, ble_rssi[ble_index])
-            ble_index += 1
+        weights, obs_index = apply_ble_at_step(
+            weights, x, y, particle_floor, observations, obs_index, step.t_rel, ble)
 
         if weights.sum() > 0:
             estimate_x = np.average(x, weights=weights)

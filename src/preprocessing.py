@@ -11,7 +11,7 @@ For one measurement run it:
     3. asks imu.py and ble.py to build the clean streams,
     4. computes one shared time origin (t0) for the whole run,
     5. collects simple metadata (counts, dropped rows, beacon stats, duration),
-    6. flags Run 1 and Run 2 as duplicates (without removing them),
+    6. flags any byte-identical duplicate runs (without removing them),
     7. returns everything bundled in a Run object.
 
 This module does NOT do filtering, step detection, or modeling. It only loads,
@@ -84,8 +84,9 @@ def find_duplicate_runs(run_id, raw_dir=RAW_DATA_DIR):
     """
     Find other runs whose raw file is byte-for-byte identical to this one.
 
-    Returns a list of run ids (empty if the run is unique). Run 1 and Run 2 are
-    known duplicates, so this will report them as duplicates of each other.
+    Returns a list of run ids (empty if the run is unique). It compares MD5 file
+    hashes, so it catches an accidental duplicate recording (as happened with an
+    early Run 2 submission, since replaced with the correct file).
     """
     this_hash = hash_file(run_file_path(run_id, raw_dir))
     duplicates = []
@@ -98,7 +99,7 @@ def find_duplicate_runs(run_id, raw_dir=RAW_DATA_DIR):
     return duplicates
 
 
-def build_metadata(run_id, raw_df, source_counts, imu_streams, ble_stream,
+def build_metadata(raw_df, source_counts, imu_streams, ble_stream,
                    duplicate_with):
     """
     Collect simple, human-readable facts about the run.
@@ -162,7 +163,7 @@ def load_run(run_id, raw_dir=RAW_DATA_DIR):
 
     # 5. Detect duplicate runs and collect descriptive metadata.
     duplicate_with = find_duplicate_runs(run_id, raw_dir)
-    meta = build_metadata(run_id, raw_df, source_counts,
+    meta = build_metadata(raw_df, source_counts,
                           imu_streams, ble_stream, duplicate_with)
 
     # 6. Bundle everything into the Run object.
