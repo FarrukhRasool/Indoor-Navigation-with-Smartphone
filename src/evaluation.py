@@ -5,18 +5,20 @@ evaluation.py
 Responsible for the ground-truth reference data and, later, the error metrics
 that compare an estimated trajectory against it.
 
-This file currently implements the **door-reference loader** (Milestone M2,
-Part A). The reference timestamps were recorded at laboratory doors during each
-run and stored in `assignment/Paths_references.xlsx`.
+This file implements the **door-reference loader**. The reference timestamps were
+recorded at laboratory doors during each run and stored in
+`assignment/Paths_references.xlsx`.
 
-The spreadsheet has four side-by-side blocks, one per run. Each block has four
-columns: Number, Time (ms), Sum_Time (ms), and Door. The Door value is written
-as "<floor> <room>" (for example "0 24" = floor 0, room 024), except for the
-START and END markers.
+The spreadsheet has four side-by-side blocks, one per run. Each block has six
+columns: Number, Time (ms), Sum_Time (ms), Steps, Sum_steps, and Door. `Steps` is
+the number of steps taken during that segment (derived from the segment time and
+the walking pace), `Sum_steps` is the running total, and Door is written as
+"<floor> <room>" (for example "0 24" = floor 0, room 024), except for the START
+and END markers. A separate cell records the calibrated step length in cm.
 
 This module does NOT run the filter or draw plots. Metric functions and the
 metric (x, y) positions of each door will be added later (the door positions
-come from building.py in M2 Part B).
+come from building.py).
 """
 
 import pandas as pd
@@ -26,13 +28,13 @@ import pandas as pd
 REFERENCE_FILE = "assignment/Paths_references.xlsx"
 
 # For each run, the spreadsheet columns (0-indexed) that hold
-# Number, Time (ms), Sum_Time (ms), and Door. The blocks are separated by an
-# empty spacer column, so they start at 1, 6, 11, and 16.
+# Number, Time (ms), Sum_Time (ms), Steps, Sum_steps, and Door. The blocks are
+# side by side, each six columns wide, separated by a spacer column.
 REFERENCE_COLUMNS = {
-    1: (1, 2, 3, 4),
-    2: (6, 7, 8, 9),
-    3: (11, 12, 13, 14),
-    4: (16, 17, 18, 19),
+    1: (1, 2, 3, 4, 5, 6),
+    2: (8, 9, 10, 11, 12, 13),
+    3: (15, 16, 17, 18, 19, 20),
+    4: (22, 23, 24, 25, 26, 27),
 }
 
 
@@ -84,13 +86,15 @@ def load_reference(run_id, reference_file=REFERENCE_FILE, start_offset_s=0.0):
 
     Returns
     -------
-    DataFrame with columns: number, floor, room, time_ms, sum_time_ms, t_rel
+    DataFrame with columns:
+        number, floor, room, time_ms, sum_time_ms, steps, sum_steps, t_rel
         One row per checkpoint, in order, including START and END.
     """
     # Read the whole sheet without a header so we can address columns by position.
     raw = pd.read_excel(reference_file, header=None)
 
-    number_col, time_col, sum_col, door_col = REFERENCE_COLUMNS[run_id]
+    (number_col, time_col, sum_col,
+     steps_col, sum_steps_col, door_col) = REFERENCE_COLUMNS[run_id]
     header_row = find_header_row(raw, number_col)
 
     records = []
@@ -105,6 +109,8 @@ def load_reference(run_id, reference_file=REFERENCE_FILE, start_offset_s=0.0):
         floor, room = parse_door(door_raw)
         time_ms = pd.to_numeric(raw.iat[i, time_col], errors="coerce")
         sum_ms = pd.to_numeric(raw.iat[i, sum_col], errors="coerce")
+        steps = pd.to_numeric(raw.iat[i, steps_col], errors="coerce")
+        sum_steps = pd.to_numeric(raw.iat[i, sum_steps_col], errors="coerce")
 
         records.append({
             "number": int(number) if not pd.isna(number) else None,
@@ -112,6 +118,8 @@ def load_reference(run_id, reference_file=REFERENCE_FILE, start_offset_s=0.0):
             "room": room,
             "time_ms": int(time_ms) if not pd.isna(time_ms) else None,
             "sum_time_ms": int(sum_ms) if not pd.isna(sum_ms) else None,
+            "steps": round(float(steps), 3) if not pd.isna(steps) else None,
+            "sum_steps": round(float(sum_steps), 3) if not pd.isna(sum_steps) else None,
             "t_rel": sum_ms / 1000.0 + start_offset_s if not pd.isna(sum_ms) else None,
         })
 
@@ -120,3 +128,22 @@ def load_reference(run_id, reference_file=REFERENCE_FILE, start_offset_s=0.0):
             break
 
     return pd.DataFrame(records)
+
+
+def load_step_length_m(reference_file=REFERENCE_FILE):
+    """
+    Read the calibrated step length (in metres) from the reference workbook.
+
+    The workbook records it in a labelled cell ("Step lenght (cm)") with the value
+    in a neighbouring cell on the same row; we convert from centimetres to metres.
+    """
+    raw = pd.read_excel(reference_file, header=None)
+    for i in range(len(raw)):
+        for j in range(raw.shape[1]):
+            text = str(raw.iat[i, j]).strip().lower()
+            if text.startswith("step") and "cm" in text:
+                for k in range(j + 1, raw.shape[1]):
+                    value = pd.to_numeric(raw.iat[i, k], errors="coerce")
+                    if not pd.isna(value):
+                        return float(value) / 100.0
+    raise ValueError("Could not find the step length in the reference file.")

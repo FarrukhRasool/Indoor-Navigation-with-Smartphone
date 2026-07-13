@@ -103,7 +103,7 @@ def acceleration_magnitude(accel):
     return np.sqrt(accel["x"] ** 2 + accel["y"] ** 2 + accel["z"] ** 2)
 
 
-def detect_steps(accel, min_seconds_between_steps=0.3):
+def detect_steps(accel, min_seconds_between_steps=0.3, height_std_factor=1.25):
     """
     Detect steps as peaks in the acceleration magnitude.
 
@@ -114,6 +114,11 @@ def detect_steps(accel, min_seconds_between_steps=0.3):
     min_seconds_between_steps : float
         Shortest time we allow between two steps. This stops a single step from
         being counted twice.
+    height_std_factor : float
+        A step peak must rise above `mean + height_std_factor * std` of the
+        acceleration magnitude. The default 1.25 was calibrated so the detected
+        step count matches the reference step counts in Paths_references.xlsx
+        (mean ratio ~1.0 across the four runs). See decision D13.
 
     Returns
     -------
@@ -123,8 +128,9 @@ def detect_steps(accel, min_seconds_between_steps=0.3):
     magnitude = acceleration_magnitude(accel)
 
     # A step peak must rise clearly above the resting gravity level. Using
-    # mean + one standard deviation adapts to each run instead of a fixed number.
-    height_threshold = magnitude.mean() + magnitude.std()
+    # mean + a multiple of the standard deviation adapts to each run instead of a
+    # fixed number.
+    height_threshold = magnitude.mean() + height_std_factor * magnitude.std()
 
     # Convert the minimum time gap into a number of samples for find_peaks.
     sampling_rate_hz = len(accel) / (accel["t_rel"].max() - accel["t_rel"].min())
@@ -199,7 +205,7 @@ def heading_from_gyro(gyro, gravity_direction, initial_heading=0.0,
     return pd.DataFrame({"t_rel": gyro["t_rel"].values, "heading": heading.values})
 
 
-def build_motion_table(run, step_length=0.5, initial_heading=0.0,
+def build_motion_table(run, step_length=0.65, initial_heading=0.0,
                        heading_sigma_deg=15.0):
     """
     Build the per-step motion table used by the filter later.
@@ -214,9 +220,8 @@ def build_motion_table(run, step_length=0.5, initial_heading=0.0,
         A loaded run (uses its accel and gyro streams).
     step_length : float
         Assumed distance covered per step, in metres (kept constant for now).
-        The default 0.5 m was calibrated against known corridor legs in the
-        reference data (implied ~0.40-0.53 m per step on Runs 1, 3, 4); the
-        earlier 0.7 m made the estimated path ~1.7x too long. See decisions D10.
+        The default 0.65 m is the calibrated step length recorded in
+        Paths_references.xlsx (65 cm). See decision D10.
     initial_heading : float
         Heading at the start of the run, in radians (0 = east). Anchors the
         otherwise relative gyro heading to the known start direction.
