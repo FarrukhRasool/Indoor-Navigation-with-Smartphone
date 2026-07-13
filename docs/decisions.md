@@ -44,24 +44,25 @@ explain and to query (`is_walkable` = distance-to-line ≤ half-width).
 
 ---
 
-## D4 — Metric scale derived from the reference (door spacing ~5.5 m)
+## D4 — Metric scale derived from the reference (door spacing ~5.25 m)
 
 **Decision:** Set the building's metric scale from the reference data rather than a
-guess. Multiplying the per-segment step counts in `Paths_references.xlsx` by the
-measured 0.65 m step length gives the real door-to-door distances, whose median
-across all runs is **~5.5 m**. So `DOOR_SPACING_M = 5.5` (with `WEST_OFFSET_M = 5`,
-`MAIN_CORRIDOR_LENGTH_M = 42`, `EAST_STUB_LENGTH_M = 6`); doors, beacons, corridor,
+guess. Multiplying the **counted** step totals in `Paths_references.xlsx` by the
+measured 0.65 m step length gives the real distances. The four one-way
+door-24→door-18 traversals are tightly consistent at **5.09–5.42 m per spacing**
+(mean ≈ 5.25 m), and Run 1's START→door-24 (13 steps) implies ~8.5 m from the west
+staircase to the first door. So `DOOR_SPACING_M = 5.25`, `WEST_OFFSET_M = 8.5`,
+`MAIN_CORRIDOR_LENGTH_M = 44`, `EAST_STUB_LENGTH_M = 6`; doors, beacons, corridor,
 and staircases derive from these.
 
-**Why:** The earlier nominal 4.5 m was a guess that made the model ~20% too small,
-so the estimated (real-metre) trajectories overshot the corridors. The reference
-now gives an actual measurement. The door-24→18 span is now 33 m over 6 spacings,
-consistent with the reference range (~31–40 m).
+**Why:** The earlier nominal 4.5 m was a guess that made the model too small. With
+the counted step totals the estimate is far tighter than the previous
+time×pace-derived data (which had ranged 3.8–9.8 m/spacing).
 
-**Caveat:** the per-segment distances are noisy (median 5.6 m, range 0.4–8.5 m)
-because the reference step counts come from time × walking pace; 5.5 m is a robust
-central estimate, still tunable. Rescaling changes the filter's coordinate scale,
-so the filter (on the development branch) should be re-evaluated against it.
+**Caveat:** still approximate (adjacent-segment distances vary with weaving), but
+the traversal-averaged 5.25 m is well supported. Rescaling changes the filter's
+coordinate scale, so the filter (on the development branch) should be re-evaluated
+against it.
 
 ---
 
@@ -210,15 +211,13 @@ Run 3's initial heading to π cut its early-leg error 19.4 → 11.1 m. This is f
 next, in the orchestration layer (start position + heading are known, fixable
 boundary conditions per the assignment).
 
-**Update (ground truth from the reference).** `Paths_references.xlsx` was later
-extended with a measured **step length of 65 cm (0.65 m)** and per-segment step
-counts. We now use **0.65 m** as the step length (`build_motion_table` default),
-read from the workbook via `evaluation.load_step_length_m`. The earlier 0.40–0.53 m
-figures were an artefact of our **nominal building scale being too small** (door
-spacing assumed at 4.5 m): at 0.65 m/step the real walked distances are much longer
-(e.g. Run 1's door 24→18 ≈ 62 steps × 0.65 ≈ 40 m, not 27 m). This means the
-**building metric scale needs rescaling** — a separate follow-up; the step length
-itself is now a measured value, not a guess.
+**Update (ground truth from the reference).** The reference recorded a measured
+**step length of 65 cm (0.65 m)**. We use **0.65 m** as the step length
+(`build_motion_table` default), kept as the constant `evaluation.STEP_LENGTH_M` (the
+re-recorded workbook no longer stores the cell). The earlier 0.40–0.53 m figures
+were an artefact of our nominal building scale being too small; the building has
+since been rescaled from the counted step totals (see D4). The step length itself is
+a measured value, not a guess.
 
 **Status:** Superseded — step length is **0.65 m** (measured, from the reference).
 Still a tunable parameter of `build_motion_table`.
@@ -313,28 +312,27 @@ assignment expects.
 ## D13 — Step-detection threshold calibrated to the reference step counts
 
 **Decision:** Set the peak-height threshold in `imu.detect_steps` to
-`mean + 1.25 * std` of the acceleration magnitude (the `height_std_factor`
-parameter, default 1.25), up from the earlier `mean + 1 * std`.
+`mean + 1.0 * std` of the acceleration magnitude (the `height_std_factor`
+parameter, default 1.0).
 
-**Why:** `Paths_references.xlsx` now records a step count per segment (derived from
-the segment time and the walking pace), giving a near-ground-truth total step count
-per run. At `mean + 1 * std` our detector over-counted by ~5–16% (mean ratio 1.11).
-A sweep of the threshold factor showed **1.25** brings the detected count in line
-with the reference:
+**Why:** the re-recorded `Paths_references.xlsx` records a **counted** cumulative
+step total per checkpoint (the `Step` column) — actual ground truth, not the earlier
+time×pace estimate. Against these counted totals the detected count is stable across
+nearby thresholds (the new recordings have clean, well-separated peaks), and
+`mean + 1.0 * std` matches to within ~1.5%:
 
-| Run | detected (1.25·std) | reference | ratio |
-|-----|---------------------|-----------|-------|
-| 1 | 265 | 263.7 | 1.00 |
-| 2 | 245 | 228.6 | 1.07 |
-| 3 | 330 | 315.6 | 1.05 |
-| 4 | 286 | 299.8 | 0.95 |
+| Run | detected (1.0·std) | reference (counted) | ratio |
+|-----|--------------------|---------------------|-------|
+| 1 | 214 | 216 | 0.99 |
+| 2 | 231 | 238 | 0.97 |
+| 3 | 335 | 340 | 0.99 |
+| 4 | 281 | 282 | 1.00 |
 
-Mean ratio ≈ 1.02. The minimum step spacing was left at 0.3 s (widening it barely
-changed the count — the over-count came from low peaks, not double-counting).
+Mean ratio ≈ 0.99. (An earlier calibration against the *derived* counts used 1.25;
+the new counted totals and cleaner recordings put the best value back at 1.0.)
 
-**Why this is not overfitting:** the reference counts are an independent estimate of
-the true number of steps (time × measured pace), so matching them is a genuine
-calibration against ground truth, not fitting to noise.
+**Why this is not overfitting:** the counted totals are true step counts, so matching
+them is a genuine calibration against ground truth.
 
 **Status:** Confirmed. `height_std_factor` remains a tunable parameter of
 `detect_steps`.

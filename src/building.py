@@ -17,11 +17,11 @@ Coordinate system (see docs/architecture.md):
     - units = metres
     - floor is a separate index (0 = lower/ground, 1 = upper)
 
-The metric scale is derived from the reference data: the per-segment step counts
-in Paths_references.xlsx times the measured 0.65 m step length give a real
-door-to-door spacing of ~5.5 m. All the tunable numbers are constants at the top
-of this file, and the doors, beacons, corridor, and east staircase derive from
-them, so changing the constants rescales the whole building consistently.
+The metric scale is derived from the reference data: the counted step totals in
+Paths_references.xlsx times the measured 0.65 m step length give a real door-to-door
+spacing of ~5.25 m. All the tunable numbers are constants at the top of this file,
+and the doors, beacons, corridor, and east staircase derive from them, so changing
+the constants rescales the whole building consistently.
 
 This module only describes geometry and answers validity questions. It does NOT
 load sensor data, run the filter, or plot.
@@ -32,17 +32,18 @@ import math
 
 # --- Tunable geometry -------------------------------------------------------
 #
-# The metric scale is derived from the reference data: multiplying the per-segment
+# The metric scale is derived from the reference data: multiplying the counted
 # step counts in Paths_references.xlsx by the measured 0.65 m step length gives the
-# real door-to-door distance, whose median across all runs is ~5.5 m (the earlier
-# 4.5 m was a guess that made the model ~20% too small). The doors, beacons,
+# real distances. The four one-way door-24->door-18 traversals imply ~5.25 m per
+# door spacing (30.6-32.5 m over 6 spacings), and Run 1's START->door-24 (13 steps)
+# implies ~8.5 m from the west staircase to the first door. The doors, beacons,
 # corridor length, and east staircase below all derive from these constants, so
 # changing them rescales the whole building consistently.
 
-DOOR_SPACING_M = 5.5          # distance between two neighbouring main doors
+DOOR_SPACING_M = 5.25         # distance between two neighbouring main doors
 CORRIDOR_HALF_WIDTH_M = 1.0   # half of the corridor width (corridor is ~2 m)
-WEST_OFFSET_M = 5.0           # west staircase -> first door (room 24 / 124)
-MAIN_CORRIDOR_LENGTH_M = 42.0 # west staircase -> east end of the main corridor
+WEST_OFFSET_M = 8.5           # west staircase -> first door (room 24 / 124)
+MAIN_CORRIDOR_LENGTH_M = 44.0 # west staircase -> east end of the main corridor
 EAST_STUB_LENGTH_M = 6.0      # end -> east staircase (short south stub)
 STAIRCASE_RADIUS_M = 3.0      # radius of a staircase zone (floor-change area)
 

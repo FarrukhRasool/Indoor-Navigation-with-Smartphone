@@ -103,7 +103,7 @@ def acceleration_magnitude(accel):
     return np.sqrt(accel["x"] ** 2 + accel["y"] ** 2 + accel["z"] ** 2)
 
 
-def detect_steps(accel, min_seconds_between_steps=0.3, height_std_factor=1.25):
+def detect_steps(accel, min_seconds_between_steps=0.3, height_std_factor=1.0):
     """
     Detect steps as peaks in the acceleration magnitude.
 
@@ -116,9 +116,9 @@ def detect_steps(accel, min_seconds_between_steps=0.3, height_std_factor=1.25):
         being counted twice.
     height_std_factor : float
         A step peak must rise above `mean + height_std_factor * std` of the
-        acceleration magnitude. The default 1.25 was calibrated so the detected
-        step count matches the reference step counts in Paths_references.xlsx
-        (mean ratio ~1.0 across the four runs). See decision D13.
+        acceleration magnitude. The default 1.0 matches the counted step totals in
+        Paths_references.xlsx to within ~1.5% across the four runs (the counts are
+        stable across nearby thresholds). See decision D13.
 
     Returns
     -------
