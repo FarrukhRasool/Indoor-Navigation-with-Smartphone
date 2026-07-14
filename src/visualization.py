@@ -1,14 +1,3 @@
-"""
-visualization.py
------------------
-
-Responsible for plotting. It draws IMU signals, BLE signals, trajectories, and
-evaluation graphs.
-
-It does NOT compute anything (no filtering, no step detection). It only takes
-already-prepared data and shows it.
-"""
-
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -16,20 +5,6 @@ import imu
 
 
 def plot_acceleration_with_steps(accel, steps, run_id=None, ax=None):
-    """
-    Plot the acceleration magnitude over time and mark the detected steps.
-
-    Parameters
-    ----------
-    accel : DataFrame
-        Cleaned accelerometer stream (columns t_ms, t_rel, x, y, z).
-    steps : DataFrame
-        Detected step events (columns step_id, t_ms, t_rel, magnitude).
-    run_id : int, optional
-        Used only for the plot title.
-    ax : matplotlib Axes, optional
-        Draw on an existing axis; if None, a new figure is created.
-    """
     magnitude = imu.acceleration_magnitude(accel)
 
     if ax is None:
@@ -55,12 +30,6 @@ def plot_acceleration_with_steps(accel, steps, run_id=None, ax=None):
 
 
 def plot_heading(heading_series, run_id=None, ax=None):
-    """
-    Plot the estimated heading (travel direction) over time, in degrees.
-
-    Straight corridor walking shows up as flat segments; turns show up as steps
-    (a turnaround is about 180 degrees).
-    """
     if ax is None:
         _, ax = plt.subplots(figsize=(12, 3))
 
@@ -77,12 +46,6 @@ def plot_heading(heading_series, run_id=None, ax=None):
 
 
 def plot_dead_reckoning(trajectory, run_id=None, ax=None):
-    """
-    Plot a dead-reckoning trajectory (x, y) in metres.
-
-    This is the raw motion model with no map or BLE correction, so it is expected
-    to drift; it only checks that the motion model produces a sensible shape.
-    """
     if ax is None:
         _, ax = plt.subplots(figsize=(7, 7))
 
@@ -104,14 +67,6 @@ def plot_dead_reckoning(trajectory, run_id=None, ax=None):
 
 
 def plot_step_count_comparison(steps, reference, run_id=None, ax=None):
-    """
-    Compare detected cumulative steps against the counted reference over time.
-
-    The detected steps are drawn as a cumulative curve (1, 2, 3, ... at each step
-    time); the reference checkpoints are drawn as markers at their counted step
-    totals. A well-calibrated detector's curve passes through the markers, so any
-    drift between detection and ground truth is visible as a growing gap.
-    """
     if ax is None:
         _, ax = plt.subplots(figsize=(11, 4))
 
@@ -135,25 +90,6 @@ def plot_step_count_comparison(steps, reference, run_id=None, ax=None):
 
 def plot_particle_cloud(trajectory, spread, dead_reckoning=None,
                         run_id=None, ax=None, n_rings=6):
-    """
-    Plot the motion-only particle-filter estimate.
-
-    Shows the estimated (mean) trajectory and the growing motion uncertainty as
-    circles whose radius is the cloud spread at that point. If a dead-reckoning
-    path is given, it is drawn too: with no correction the filter mean should sit
-    almost on top of it.
-
-    Parameters
-    ----------
-    trajectory : DataFrame
-        Filter estimate (columns t_rel, x, y).
-    spread : Series
-        Cloud spread (m) per step, aligned with `trajectory`.
-    dead_reckoning : DataFrame, optional
-        The M3 dead-reckoning path (columns t_rel, x, y) for comparison.
-    n_rings : int
-        How many uncertainty circles to draw along the path.
-    """
     if ax is None:
         _, ax = plt.subplots(figsize=(7, 7))
 
@@ -190,26 +126,6 @@ def plot_particle_cloud(trajectory, spread, dead_reckoning=None,
 
 def plot_trajectory_on_corridor(trajectory, corridor_polyline, half_width,
                                 beacons=None, run_id=None, ax=None):
-    """
-    Plot an estimated trajectory on top of the corridor.
-
-    The corridor is drawn as its centre-line plus a translucent thick band that
-    suggests the walkable width, so it is easy to see whether the estimate stays
-    on the corridor. The band is schematic (drawn in screen units, not exact
-    metres); the numeric walkable check is done in the analysis, not the plot.
-
-    Parameters
-    ----------
-    trajectory : DataFrame
-        Estimated trajectory (columns t_rel, x, y).
-    corridor_polyline : list of (x, y)
-        The corridor centre-line, e.g. from building.corridor_polyline(floor).
-    half_width : float
-        Corridor half-width in metres (used in the title).
-    beacons : dict, optional
-        Beacon name -> (x, y, floor). If given, the beacons are drawn as markers
-        so the BLE anchors are visible. Pass only the beacons for this floor.
-    """
     if ax is None:
         _, ax = plt.subplots(figsize=(9, 5))
 
@@ -260,13 +176,6 @@ def _draw_corridor(ax, corridor_polyline):
 
 
 def plot_floor_over_time(trajectory, reference=None, run_id=None, ax=None):
-    """
-    Plot the estimated floor over time, with the reference checkpoint floors.
-
-    The estimated floor is a step line (0 or 1); the reference checkpoints are
-    drawn as dots, so it is easy to see whether the filter switches floor at the
-    right moments.
-    """
     if ax is None:
         _, ax = plt.subplots(figsize=(12, 2.5))
 
@@ -292,15 +201,8 @@ def plot_floor_over_time(trajectory, reference=None, run_id=None, ax=None):
 
 def plot_trajectory_two_floors(trajectory, corridor_polyline, half_width,
                                beacons=None, run_id=None):
-    """
-    Plot the estimated trajectory split across the two floors.
-
-    One panel per floor shows the corridor and the estimated positions that were
-    assigned to that floor (as dots, since a floor can be visited in more than one
-    separate segment). Beacons for each floor are marked if provided.
-    """
     fig, axes = plt.subplots(2, 1, figsize=(9, 7))
-    for floor_index, ax in zip([1, 0], axes):   # floor 1 on top, floor 0 below
+    for floor_index, ax in zip([1, 0], axes):   
         _draw_corridor(ax, corridor_polyline)
 
         segment = trajectory[trajectory["floor"] == floor_index]
