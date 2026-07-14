@@ -5,18 +5,19 @@ evaluation.py
 Responsible for the ground-truth reference data and, later, the error metrics
 that compare an estimated trajectory against it.
 
-This file currently implements the **door-reference loader** (Milestone M2,
-Part A). The reference timestamps were recorded at laboratory doors during each
-run and stored in `assignment/Paths_references.xlsx`.
+This file implements the **door-reference loader**. The reference timestamps were
+recorded at laboratory doors during each run and stored in
+`assignment/Paths_references.xlsx`.
 
-The spreadsheet has four side-by-side blocks, one per run. Each block has four
-columns: Number, Time (ms), Sum_Time (ms), and Door. The Door value is written
-as "<floor> <room>" (for example "0 24" = floor 0, room 024), except for the
-START and END markers.
+The spreadsheet has four side-by-side blocks, one per run. Each block has five
+columns: Number, Time (ms), Sum_Time (ms), Door, and Step. `Step` is the running
+total number of steps counted up to that checkpoint (counted during recording, not
+derived), and Door is written as "<floor> <room>" (for example "0 24" = floor 0,
+room 024), except for the START and END markers.
 
 This module does NOT run the filter or draw plots. Metric functions and the
 metric (x, y) positions of each door will be added later (the door positions
-come from building.py in M2 Part B).
+come from building.py).
 """
 
 import pandas as pd
@@ -25,14 +26,18 @@ import pandas as pd
 # The reference workbook (path is relative to the project root).
 REFERENCE_FILE = "assignment/Paths_references.xlsx"
 
+# Measured step length (stride), in metres. An earlier version of the workbook
+# recorded it as 65 cm; the current version omits the cell, so we keep it here.
+STEP_LENGTH_M = 0.65
+
 # For each run, the spreadsheet columns (0-indexed) that hold
-# Number, Time (ms), Sum_Time (ms), and Door. The blocks are separated by an
-# empty spacer column, so they start at 1, 6, 11, and 16.
+# Number, Time (ms), Sum_Time (ms), Door, and Step. The blocks are side by side,
+# each five columns wide, separated by a spacer column.
 REFERENCE_COLUMNS = {
-    1: (1, 2, 3, 4),
-    2: (6, 7, 8, 9),
-    3: (11, 12, 13, 14),
-    4: (16, 17, 18, 19),
+    1: (1, 2, 3, 4, 5),
+    2: (7, 8, 9, 10, 11),
+    3: (13, 14, 15, 16, 17),
+    4: (19, 20, 21, 22, 23),
 }
 
 
@@ -84,13 +89,15 @@ def load_reference(run_id, reference_file=REFERENCE_FILE, start_offset_s=0.0):
 
     Returns
     -------
-    DataFrame with columns: number, floor, room, time_ms, sum_time_ms, t_rel
-        One row per checkpoint, in order, including START and END.
+    DataFrame with columns:
+        number, floor, room, time_ms, sum_time_ms, sum_steps, t_rel
+        One row per checkpoint, in order, including START and END. `sum_steps` is
+        the counted cumulative step total at that checkpoint.
     """
     # Read the whole sheet without a header so we can address columns by position.
     raw = pd.read_excel(reference_file, header=None)
 
-    number_col, time_col, sum_col, door_col = REFERENCE_COLUMNS[run_id]
+    number_col, time_col, sum_col, door_col, step_col = REFERENCE_COLUMNS[run_id]
     header_row = find_header_row(raw, number_col)
 
     records = []
@@ -105,6 +112,7 @@ def load_reference(run_id, reference_file=REFERENCE_FILE, start_offset_s=0.0):
         floor, room = parse_door(door_raw)
         time_ms = pd.to_numeric(raw.iat[i, time_col], errors="coerce")
         sum_ms = pd.to_numeric(raw.iat[i, sum_col], errors="coerce")
+        sum_steps = pd.to_numeric(raw.iat[i, step_col], errors="coerce")
 
         records.append({
             "number": int(number) if not pd.isna(number) else None,
@@ -112,6 +120,7 @@ def load_reference(run_id, reference_file=REFERENCE_FILE, start_offset_s=0.0):
             "room": room,
             "time_ms": int(time_ms) if not pd.isna(time_ms) else None,
             "sum_time_ms": int(sum_ms) if not pd.isna(sum_ms) else None,
+            "sum_steps": int(sum_steps) if not pd.isna(sum_steps) else None,
             "t_rel": sum_ms / 1000.0 + start_offset_s if not pd.isna(sum_ms) else None,
         })
 

@@ -72,8 +72,7 @@ Embedded Intelligence Final Assignment/
     ├── building.py
     ├── particle_filter.py
     ├── evaluation.py
-    ├── visualization.py
-    └── utils.py
+    └── visualization.py
 ```
 
 ---
@@ -194,12 +193,6 @@ list to keep responsibilities from leaking across files.
 - **Depends on:** matplotlib (+ reads `Run`/trajectory/metric structures).
 - **Does NOT:** compute anything (no filtering, preprocessing, or metrics).
 
-### 3.8 `utils.py` — shared helpers ⬜
-
-- **Responsibility:** small generic helpers shared across modules (e.g. angle
-  wrapping, distance, seeding). Kept minimal to avoid a junk-drawer.
-- **Does NOT:** hold domain logic that belongs in a specific module.
-
 ---
 
 ## 4. Core data structures (contracts)
@@ -307,7 +300,7 @@ notebooks ─────────────► (everything, for orchestrat
 
 visualization ─► reads Run / trajectory / metric structures (no compute)
 
-particle_filter ─► building, ble (model), imu (motion table), utils
+particle_filter ─► building, ble (model), imu (motion table)
 evaluation ─────► building, (reads trajectory), openpyxl
 imu ────────────► numpy, pandas, scipy
 ble ────────────► pandas, building (for beacon positions, at model time)

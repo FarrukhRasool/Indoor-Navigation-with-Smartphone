@@ -103,6 +103,36 @@ def plot_dead_reckoning(trajectory, run_id=None, ax=None):
     return ax
 
 
+def plot_step_count_comparison(steps, reference, run_id=None, ax=None):
+    """
+    Compare detected cumulative steps against the counted reference over time.
+
+    The detected steps are drawn as a cumulative curve (1, 2, 3, ... at each step
+    time); the reference checkpoints are drawn as markers at their counted step
+    totals. A well-calibrated detector's curve passes through the markers, so any
+    drift between detection and ground truth is visible as a growing gap.
+    """
+    if ax is None:
+        _, ax = plt.subplots(figsize=(11, 4))
+
+    detected_cumulative = np.arange(1, len(steps) + 1)
+    ax.plot(steps["t_rel"], detected_cumulative, color="steelblue",
+            linewidth=1.2, label="detected (cumulative)")
+
+    marked = reference[reference["sum_steps"].notna()]
+    ax.scatter(marked["t_rel"], marked["sum_steps"], color="red", s=30, zorder=3,
+               label="counted reference")
+
+    title = "Detected vs counted cumulative steps"
+    if run_id is not None:
+        title += " (Run %d)" % run_id
+    ax.set_title(title)
+    ax.set_xlabel("time since run start (s)")
+    ax.set_ylabel("cumulative steps")
+    ax.legend(loc="upper left")
+    return ax
+
+
 def plot_particle_cloud(trajectory, spread, dead_reckoning=None,
                         run_id=None, ax=None, n_rings=6):
     """
