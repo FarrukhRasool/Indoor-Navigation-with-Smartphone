@@ -50,7 +50,7 @@ def load_reference(run_id, reference_file=REFERENCE_FILE, start_offset_s=0.0):
         number = raw.iat[i, number_col]
         door_raw = raw.iat[i, door_col]
 
-        # Skip fully empty rows (blocks have different lengths).
+        
         if pd.isna(number) and pd.isna(door_raw):
             continue
 
@@ -69,7 +69,7 @@ def load_reference(run_id, reference_file=REFERENCE_FILE, start_offset_s=0.0):
             "t_rel": sum_ms / 1000.0 + start_offset_s if not pd.isna(sum_ms) else None,
         })
 
-        # The END marker is the last checkpoint of a run.
+       
         if room == "END":
             break
 
