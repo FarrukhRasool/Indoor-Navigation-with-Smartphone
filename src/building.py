@@ -1,54 +1,15 @@
-"""
-building.py
------------
-
-Represents the two-floor building for the position estimate: the walkable
-corridors, the door positions (reference points), the beacon positions, and the
-staircase zones where floor changes are allowed.
-
-The building is modelled simply. Each floor is one long main corridor plus a
-short stub leading to the east staircase. We describe the walkable space as a
-centre-line (a poly-line) with a half-width: a point is walkable if it lies
-within the half-width of the corridor centre-line.
-
-Coordinate system (see docs/architecture.md):
-    - origin (0, 0) at the west staircase, floor 0
-    - x axis = east (along the main corridor), y axis = north
-    - units = metres
-    - floor is a separate index (0 = lower/ground, 1 = upper)
-
-The metric scale is derived from the reference data: the counted step totals in
-Paths_references.xlsx times the measured 0.65 m step length give a real door-to-door
-spacing of ~5.25 m. All the tunable numbers are constants at the top of this file,
-and the doors, beacons, corridor, and east staircase derive from them, so changing
-the constants rescales the whole building consistently.
-
-This module only describes geometry and answers validity questions. It does NOT
-load sensor data, run the filter, or plot.
-"""
-
 import math
 
 
-# --- Tunable geometry -------------------------------------------------------
-#
-# The metric scale is derived from the reference data: multiplying the counted
-# step counts in Paths_references.xlsx by the measured 0.65 m step length gives the
-# real distances. The four one-way door-24->door-18 traversals imply ~5.25 m per
-# door spacing (30.6-32.5 m over 6 spacings), and Run 1's START->door-24 (13 steps)
-# implies ~8.5 m from the west staircase to the first door. The doors, beacons,
-# corridor length, and east staircase below all derive from these constants, so
-# changing them rescales the whole building consistently.
 
-DOOR_SPACING_M = 5.25         # distance between two neighbouring main doors
-CORRIDOR_HALF_WIDTH_M = 1.0   # half of the corridor width (corridor is ~2 m)
-WEST_OFFSET_M = 8.5           # west staircase -> first door (room 24 / 124)
-MAIN_CORRIDOR_LENGTH_M = 44.0 # west staircase -> east end of the main corridor
-EAST_STUB_LENGTH_M = 6.0      # end -> east staircase (short south stub)
-STAIRCASE_RADIUS_M = 3.0      # radius of a staircase zone (floor-change area)
+DOOR_SPACING_M = 5.25       
+CORRIDOR_HALF_WIDTH_M = 1.0   
+WEST_OFFSET_M = 8.5           
+MAIN_CORRIDOR_LENGTH_M = 44.0 
+EAST_STUB_LENGTH_M = 6.0     
+STAIRCASE_RADIUS_M = 3.0     
 
-# The seven main doors along the corridor, listed west -> east. Both floors use
-# the same room labels; the floor index distinguishes 018 from 118, etc.
+
 ROOM_ORDER_WEST_TO_EAST = ["24", "23", "22", "21", "20", "19", "18"]
 
 # Centres of the two staircases (shared by both floors).
@@ -56,15 +17,8 @@ WEST_STAIRCASE = (0.0, 0.0)
 EAST_STAIRCASE = (MAIN_CORRIDOR_LENGTH_M, -EAST_STUB_LENGTH_M + 1.0)
 
 
-# --- Corridor geometry ------------------------------------------------------
 
 def corridor_polyline(floor):
-    """
-    Return the corridor centre-line for a floor as a list of (x, y) points.
-
-    Both floors have the same footprint: a horizontal main corridor plus a short
-    stub going south to the east staircase.
-    """
     return [
         (0.0, 0.0),                                    # west staircase
         (MAIN_CORRIDOR_LENGTH_M, 0.0),                 # east end of main corridor
@@ -87,13 +41,6 @@ def _distance_point_to_segment(px, py, ax, ay, bx, by):
 
 
 def distance_to_corridor(x, y, floor):
-    """
-    Shortest distance from (x, y) to the corridor centre-line of a floor.
-
-    Zero on the centre-line, growing as the point moves away from it. This is the
-    building's single source of truth for "how far off the corridor is a point",
-    used both by is_walkable and by the particle filter's soft wall constraint.
-    """
     polyline = corridor_polyline(floor)
     distances = []
     for (ax, ay), (bx, by) in zip(polyline, polyline[1:]):
@@ -102,12 +49,6 @@ def distance_to_corridor(x, y, floor):
 
 
 def is_walkable(x, y, floor):
-    """
-    Return True if (x, y) on the given floor lies inside a corridor.
-
-    A point is walkable if it is within the corridor half-width of the
-    centre-line poly-line.
-    """
     return distance_to_corridor(x, y, floor) <= CORRIDOR_HALF_WIDTH_M
 
 
@@ -126,15 +67,6 @@ def can_change_floor(x, y):
 # --- Reference points: doors and beacons ------------------------------------
 
 def door_positions():
-    """
-    Return the reference door positions as a dict keyed by (floor, room).
-
-    Doors are placed on the corridor centre-line (y = 0) at the point where a
-    person stands when passing that door. Both floors share the same seven main
-    doors; floor 1 has an extra door "21a" between rooms "22" and "21".
-
-    Example key/value: (0, "24") -> (4.0, 0.0, 0)
-    """
     doors = {}
     for index, room in enumerate(ROOM_ORDER_WEST_TO_EAST):
         x = WEST_OFFSET_M + index * DOOR_SPACING_M
@@ -149,12 +81,6 @@ def door_positions():
 
 
 def beacon_positions():
-    """
-    Return the six installed beacons as a dict: name -> (x, y, floor).
-
-    These are the beacons marked in red on the path sketches (emi1, 2, 3, 4, 8,
-    10). Three sit on each floor: west end, middle, and east end of the corridor.
-    """
     x_west = 2.0
     x_middle = WEST_OFFSET_M + 3 * DOOR_SPACING_M   # ~ room 21 / 121 (centre)
     x_east = MAIN_CORRIDOR_LENGTH_M - 2.0           # just before the east stub
