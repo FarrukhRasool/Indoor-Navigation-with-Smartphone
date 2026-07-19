@@ -228,3 +228,89 @@ def plot_trajectory_two_floors(trajectory, corridor_polyline, half_width,
         fig.suptitle("Estimated trajectory by floor (Run %d)" % run_id)
     fig.tight_layout()
     return fig
+
+
+def plot_error_at_references(per_checkpoint, run_id=None, ax=None):
+    """
+    Plot the position error at each door reference checkpoint.
+
+    One bar per checkpoint (height = distance error in metres), coloured by whether
+    the estimated floor is correct (green) or wrong (red). This is the assignment's
+    "errors at reference points" view: it shows where the estimate is accurate and
+    which checkpoints have the wrong floor.
+
+    Parameters
+    ----------
+    per_checkpoint : DataFrame
+        From evaluation.error_at_references (columns include number, error_m,
+        floor_correct).
+    """
+    if ax is None:
+        _, ax = plt.subplots(figsize=(11, 4))
+
+    numbers = per_checkpoint["number"].values
+    errors = per_checkpoint["error_m"].values
+    correct = per_checkpoint["floor_correct"].values
+    colors = ["mediumseagreen" if c else "indianred" for c in correct]
+
+    positions = np.arange(len(numbers))
+    ax.bar(positions, errors, color=colors)
+
+    ax.set_xticks(positions)
+    ax.set_xticklabels([str(int(n)) for n in numbers])
+    ax.set_xlabel("checkpoint number")
+    ax.set_ylabel("position error (m)")
+    title = "Position error at door checkpoints"
+    if run_id is not None:
+        title += " (Run %d)" % run_id
+    ax.set_title(title)
+    from matplotlib.patches import Patch
+    ax.legend(handles=[Patch(facecolor="mediumseagreen", label="floor correct"),
+                       Patch(facecolor="indianred", label="floor wrong")],
+              loc="upper left")
+    return ax
+
+
+def plot_ablation(comparison_table, run_id=None):
+    """
+    Bar chart of the fusion ablation (from evaluation.compare_metrics).
+
+    Two panels with the variants (map-only, map+BLE, full) on the x-axis: the left
+    shows mean and median door error, the right shows floor accuracy. This makes
+    each fusion component's contribution visible at a glance.
+
+    Parameters
+    ----------
+    comparison_table : DataFrame
+        One row per variant, with columns variant, mean_error_m, median_error_m,
+        floor_accuracy (from compare_metrics, per run or averaged across runs).
+    """
+    variants = comparison_table["variant"].values
+    x = np.arange(len(variants))
+    width = 0.35
+
+    fig, (ax_err, ax_floor) = plt.subplots(1, 2, figsize=(11, 4))
+
+    ax_err.bar(x - width / 2, comparison_table["mean_error_m"], width,
+               color="steelblue", label="mean")
+    ax_err.bar(x + width / 2, comparison_table["median_error_m"], width,
+               color="lightsteelblue", label="median")
+    ax_err.set_xticks(x)
+    ax_err.set_xticklabels(variants)
+    ax_err.set_ylabel("door error (m)")
+    ax_err.set_title("Position error")
+    ax_err.legend(loc="upper left")
+
+    ax_floor.bar(x, comparison_table["floor_accuracy"], color="mediumseagreen")
+    ax_floor.set_xticks(x)
+    ax_floor.set_xticklabels(variants)
+    ax_floor.set_ylabel("floor accuracy")
+    ax_floor.set_ylim(0, 1)
+    ax_floor.set_title("Floor accuracy")
+
+    title = "Ablation: contribution of each fusion component"
+    if run_id is not None:
+        title += " (Run %d)" % run_id
+    fig.suptitle(title)
+    fig.tight_layout()
+    return fig

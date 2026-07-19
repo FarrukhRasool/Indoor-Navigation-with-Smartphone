@@ -276,16 +276,20 @@ approach the assignment points to (invalid states are simply down-weighted).
 machinery (only the floor array and a staircase-gated flip are added), and keeps
 floor changes physically constrained to staircases.
 
-**Results (full filter, all reference checkpoints, new recordings):**
+**Results (full filter, all reference checkpoints, new recordings; from the M6
+metrics in `evaluation.py`):**
 
-| Run | Floor accuracy | Door error (5c 1-floor → 5d) |
-|-----|----------------|-------------------------------|
-| 1 | 0.47 | 13.4 → 14.5 m |
-| 2 | 0.41 | 29.3 → 29.3 m |
-| 3 | 0.62 | 18.5 → 17.5 m |
-| 4 | 0.64 | 21.7 → 19.8 m |
+| Run | Floor accuracy | Mean door error | Median door error |
+|-----|----------------|-----------------|-------------------|
+| 1 | 0.53 | 14.5 m | 4.4 m |
+| 2 | 0.47 | 29.3 m | 26.0 m |
+| 3 | 0.68 | 17.5 m | 18.1 m |
+| 4 | 0.70 | 19.8 m | 16.8 m |
 
-Floor accuracy averages ~0.53; floor handling changes position error only slightly.
+Floor accuracy averages ~0.59. The **mean** door error is inflated by the floor-1
+segments where the estimate blows up (max ~45–67 m); the **median** is a fairer
+central measure (e.g. Run 1's median is only 4.4 m — the estimate is often within a
+few metres on the tracked portions).
 
 **Honest limitations (evaluation material, M6):**
 - **Spurious early flip.** A run that *starts* on a staircase (Run 1, west staircase

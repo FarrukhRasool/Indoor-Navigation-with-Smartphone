@@ -291,9 +291,10 @@ over time. **This is the graded core.**
   `maybe_change_floor` (staircase-gated stochastic flips), `estimate_floor`,
   `systematic_resample_indices`, and `run_filter` (reusing the 5c loop);
   `visualization.plot_floor_over_time` and `plot_trajectory_two_floors` were already
-  present. On the new recordings floor accuracy averages ~0.53 (0.41–0.64) and the
-  door error over all checkpoints is roughly neutral vs 5c (deterministic under a
-  fixed seed). Diagnosed limitations: runs starting *at* a staircase flip floor
+  present. On the new recordings floor accuracy averages ~0.59 (0.47–0.70, from the
+  M6 metrics) and the door error over all checkpoints is roughly neutral vs 5c
+  (deterministic under a fixed seed). Diagnosed limitations: runs starting *at* a
+  staircase flip floor
   spuriously early (Run 1); the calibrated flat path-loss (D14) makes the
   distance-based floor penalty weak; and position drift can leave the cloud short of
   a staircase (Run 2 makes 0 flips). These are documented in D12 and are the
@@ -306,7 +307,37 @@ system; the quantitative evaluation and ablations follow in M6.
 
 ---
 
-### M6 — Evaluation & experiments  ⬜
+### M6 — Evaluation & experiments  🟡 (in progress)
+
+**Progress:**
+- **M6a ✅ (done):** core metrics in `evaluation.py` — `error_at_references`
+  (per-checkpoint distance error + floor correctness, estimate interpolated to each
+  checkpoint time) and `summary_metrics` (mean / median / max error, floor accuracy,
+  n). Full-filter results: floor accuracy 0.53 / 0.47 / 0.68 / 0.70 (avg ~0.59);
+  mean door error 14.5 / 29.3 / 17.5 / 19.8 m, but median much lower (Run 1: 4.4 m)
+  as the mean is inflated by the floor-1 blow-ups. (Bringing this up also corrected
+  a START/END counting bug in the earlier ad-hoc floor-accuracy numbers.)
+- **M6b ✅ (done):** ablation comparison — `evaluation.compare_metrics(named_trajectories,
+  reference)` returns one metrics row per variant, so map-only (5b) / +BLE (5c) /
+  full (5d) can be compared side by side. Key finding: **floor handling is the big
+  win for floor accuracy** (Run 4: 0.30 → 0.70), BLE is roughly neutral on position
+  (no regressions after D14), and the map provides the base constraint. `evaluation.py`
+  never runs the filter — the caller passes the trajectories.
+- **M6c ✅ (done):** `visualization.plot_error_at_references(per_checkpoint, run_id)`
+  — one bar per door checkpoint (height = position error), coloured by whether the
+  estimated floor is correct (green) or wrong (red). The Run 1 figure makes the M5
+  story visible: the floor-0 leg is floor-*wrong* but position-accurate (~2–6 m,
+  the spurious early flip), while the floor-1 leg is floor-*correct* but drifts (up
+  to ~50 m). Figure: `figures/run1_error_at_references.png`.
+- **M6d ✅ (done):** `visualization.plot_ablation(comparison_table, run_id)` — a
+  two-panel bar chart (mean+median door error on the left, floor accuracy on the
+  right) with the variants map-only / map+BLE / full on the x-axis. The
+  across-runs aggregate makes the headline clear: **position error is flat**
+  (~20 m mean / 16 m median for all three — BLE neutral, floors don't hurt) while
+  **floor accuracy rises 0.47 → 0.47 → 0.60** for the full filter. Figure:
+  `figures/ablation.png`.
+- M6e–…: estimated trajectory over the floor plan, and any parameter comparisons —
+  optional, not started.
 
 **Objective:** measure how good the estimate is, using the door references, and
 run the experiments the assignment asks for.
