@@ -276,26 +276,26 @@ approach the assignment points to (invalid states are simply down-weighted).
 machinery (only the floor array and a staircase-gated flip are added), and keeps
 floor changes physically constrained to staircases.
 
-**Results (full filter, all reference checkpoints):**
+**Results (full filter, all reference checkpoints, new recordings):**
 
 | Run | Floor accuracy | Door error (5c 1-floor → 5d) |
 |-----|----------------|-------------------------------|
-| 1 | 0.47 | 6.7 → 6.3 m |
-| 2 | 0.88 | 15.3 → 15.2 m |
-| 3 | 0.71 | 12.5 → 12.1 m |
-| 4 | 0.60 | 14.9 → 14.9 m |
+| 1 | 0.47 | 13.4 → 14.5 m |
+| 2 | 0.41 | 29.3 → 29.3 m |
+| 3 | 0.62 | 18.5 → 17.5 m |
+| 4 | 0.64 | 21.7 → 19.8 m |
 
-Floor accuracy averages ~0.66; floor handling changes position error only slightly.
+Floor accuracy averages ~0.53; floor handling changes position error only slightly.
 
 **Honest limitations (evaluation material, M6):**
-- **Position drift starves the floor logic.** When the estimated position falls
-  short of a staircase zone (Run 1 only reaches x≈24, not the east staircase at
-  x=35), the cloud cannot create the floor-1 hypotheses the BLE update would keep.
-- **Floor locks between staircases** (physically correct), so an early wrong lock
-  persists. A run that *starts* on a staircase with no BLE yet (Run 1, west
-  staircase) can flip early and stay wrong until the next staircase.
-- **BLE is too coarse** (~50% nearest-beacon) to both correct drift and drive the
-  floor cleanly.
+- **Spurious early flip.** A run that *starts* on a staircase (Run 1, west staircase
+  `(0,0)`) flips floor almost immediately (its estimated floor jumps to 1 at ~8 s,
+  while the person is on floor 0 until ~45 s).
+- **Weak BLE floor discrimination.** The calibrated flat path-loss (n≈1.19, D14)
+  means the distance-based `FLOOR_PENALTY_M` produces only a few dB, too small
+  against the ~6.5 dB noise to reliably distinguish floors.
+- **Position drift starves the floor logic.** When the cloud never reaches a
+  staircase zone, no floor-1 hypotheses are created — Run 2 makes **0 flips**.
 
 An attempted "must leave the start staircase before flipping" gate was tried and
 **rejected**: it broke runs that legitimately change floor immediately (Run 4
@@ -336,3 +336,31 @@ them is a genuine calibration against ground truth.
 
 **Status:** Confirmed. `height_std_factor` remains a tunable parameter of
 `detect_steps`.
+
+---
+
+## D14 — BLE path-loss model calibrated to the reference distances
+
+**Decision:** Replace the nominal path-loss parameters in `ble.py` with values fit
+to the data: `RSSI_AT_1M = -76.5`, `PATH_LOSS_EXPONENT = 1.19`, `RSSI_SIGMA = 6.5`
+(was −59, 2.5, 6.0).
+
+**Why:** When BLE was first added to the filter (5c), it *worsened* the estimate on
+the clean run (Run 1 door error 1.96 → 4.44 m). A diagnosis showed the signal was
+fine — the strongest-heard beacon matched the geometrically nearest one at 6/7
+floor-0 checkpoints — but the observed RSSI (−63 to −104 dBm) mapped, under the
+nominal steep model, to distances up to ~63 m (larger than the 44 m corridor), so
+the likelihood pulled particles to wrong distances. We fit the log-distance model
+`rssi = RSSI_AT_1M − 10·n·log10(d)` by least squares on 173 (true door→beacon
+distance, observed RSSI) pairs across all runs and both floors. The real corridor
+path loss is much **flatter** (n ≈ 1.2, typical of multipath-rich indoor
+corridors) with a lower reference level.
+
+**Effect:** the Run 1 regression is fixed (BLE 4.44 → 2.02 m, i.e. BLE now *agrees*
+with the map rather than fighting it); BLE is well-behaved on all runs. It does not
+yet strongly *improve* the door error, because on the single-floor 5c the large
+errors come from the floor-1 portions the filter cannot track — BLE's drift
+correction should show once floors are added (5d) and error is measured on all
+checkpoints.
+
+**Status:** Confirmed. The three parameters remain tunable at the top of `ble.py`.

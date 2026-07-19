@@ -252,34 +252,52 @@ over time. **This is the graded core.**
   building constraints → (5c) add BLE update → (5d) add floor transitions.
 
 **Progress:**
+
+> **Note (particle-filter branch):** the filter was (re)built from scratch on this
+> branch against the new recordings and rescaled geometry. **5a–5d are all done
+> here; M5 is complete.** Bringing up 5c also required calibrating the BLE
+> path-loss model to the data (decision D14).
+
 - **5a ✅ (done):** motion-only single-floor filter in `particle_filter.py`
   (`initialise_particles`, `predict`, `estimate`, `cloud_spread`,
-  `run_motion_only`) plus `visualization.plot_particle_cloud`. The cloud mean
-  tracks the M3 dead-reckoning path (mean gap 1.1–2.4 m), the spread grows from
-  ~0.7 m to ~3.8–4.4 m, and results are deterministic under a fixed seed on all
-  four runs. Figure: `figures/run1_particle_motion_only.png`. See decision D8.
-- **5b ✅ (done):** building-constrained filter. Added `distance_to_corridor` to
-  `building.py`; added `constraint_weights`, `effective_sample_size`, systematic
-  `resample`, and `run_with_constraints` (tunable `wall_sigma`, default 0.1) to
-  `particle_filter.py`; added `visualization.plot_trajectory_on_corridor`. A soft
-  wall (D9) plus resampling snaps the cloud onto the corridor: walkability of the
-  estimate roughly doubles vs 5a (Run 1: 0.04 → 0.23). Confirmed that the map
-  alone cannot correct heading drift — it damps but does not fix the late-run
-  excursion — which motivates the BLE update in 5c. Figure:
-  `figures/run1_particle_constrained.png`. See decision D9.
+  `run_motion_only`); `visualization.plot_particle_cloud` was already present. On
+  the new recordings the cloud mean tracks the (deterministic) dead-reckoning path
+  with a mean gap of ~1.4 m (the expected contraction from averaging over heading
+  noise), the spread grows from ~0.7 m to ~3.3–4.2 m, and results are deterministic
+  under a fixed seed on all four runs. Figure:
+  `figures/run1_particle_motion_only.png`.
+- **5b ✅ (done):** building-constrained filter. Added `constraint_weights`,
+  `effective_sample_size`, systematic `resample`, and `run_with_constraints`
+  (tunable `wall_sigma`, default 0.1) to `particle_filter.py`. (`building.distance_to_corridor`
+  and `visualization.plot_trajectory_on_corridor` were already present.) A soft
+  wall (D9) plus resampling snaps the cloud onto the corridor: on the new
+  recordings the estimate's walkable fraction improves clearly on every run
+  (Run 1: 0.08 → 0.42; Runs 2–4: 0.06→0.16, 0.07→0.29, 0.04→0.30), resampling
+  fires 78–98 times, and results are deterministic under a fixed seed. Confirmed
+  that the map alone cannot correct heading drift — it damps the first traversal
+  onto the corridor but does not fix the late-run excursion — which motivates the
+  BLE update in 5c. Figure: `figures/run1_particle_constrained.png`. See decision D9.
 - **5c ✅ (done):** BLE correction. Added `run_with_ble` (event-driven RSSI weight
-  multiply on top of 5b) plus a beacon overlay in
-  `visualization.plot_trajectory_on_corridor`. Bringing this up surfaced two
-  motion-model calibration bugs, now fixed: step length (D10) and per-run initial
-  heading (D11). Figure: `figures/run1_particle_ble.png`.
+  multiply on top of 5b) to `particle_filter.py`; `visualization.plot_trajectory_on_corridor`
+  already supports a beacon overlay. Bringing it up showed the nominal RSSI model
+  was mis-calibrated (BLE *worsened* the clean run, 1.96 → 4.44 m); calibrating the
+  path-loss parameters against the reference distances (D14) fixed this — BLE now
+  agrees with the map (Run 1: 2.02 m) and is well-behaved on all runs, deterministic
+  under a fixed seed. On single-floor 5c it does not yet strongly improve the door
+  error because the large errors come from the floor-1 portions the filter cannot
+  track; its drift correction should show once floors are added (5d). Figure:
+  `figures/run1_particle_ble.png`.
 - **5d ✅ (done):** floor transitions — the full filter. Added per-particle floor,
   `maybe_change_floor` (staircase-gated stochastic flips), `estimate_floor`,
-  `systematic_resample_indices`, and `run_filter`; added
-  `visualization.plot_floor_over_time` and `plot_trajectory_two_floors`. Floor
-  accuracy averages ~0.66 (0.47–0.88); floor handling changes position error only
-  slightly. Limitations (position drift starving the floor logic, floor locking
-  between staircases, coarse BLE) are documented in D12 and are the ablation/
-  discussion material for M6. Figures: `figures/run1_filter_floor.png`,
+  `systematic_resample_indices`, and `run_filter` (reusing the 5c loop);
+  `visualization.plot_floor_over_time` and `plot_trajectory_two_floors` were already
+  present. On the new recordings floor accuracy averages ~0.53 (0.41–0.64) and the
+  door error over all checkpoints is roughly neutral vs 5c (deterministic under a
+  fixed seed). Diagnosed limitations: runs starting *at* a staircase flip floor
+  spuriously early (Run 1); the calibrated flat path-loss (D14) makes the
+  distance-based floor penalty weak; and position drift can leave the cloud short of
+  a staircase (Run 2 makes 0 flips). These are documented in D12 and are the
+  ablation/discussion material for M6. Figures: `figures/run1_filter_floor.png`,
   `figures/run1_filter_two_floors.png`. See decision D12.
 
 **M5 is complete.** The end-to-end filter (`run_filter`) fuses motion, BLE, and
