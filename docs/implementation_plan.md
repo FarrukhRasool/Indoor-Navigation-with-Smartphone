@@ -366,7 +366,23 @@ run the experiments the assignment asks for.
 
 ---
 
-### M7 — Notebook assembly & related work  ⬜
+### M7 — Notebook assembly & related work  🟡 (in progress)
+
+**Progress:**
+- `01_Data_Exploration`, `02_Preprocessing`, `03_Step_Detection` populated
+  (earlier); `Embedded_source_doc.ipynb` holds the 3-source related-work discussion.
+- **M7a ✅ (done):** `04_Particle_Filter.ipynb` — the building model (M2), the
+  calibrated BLE observation model (M4, D14), and the filter built up 5a→5d on
+  Run 1, each with its figure, plus the honest limitations. Imports only from
+  `src/`, a markdown cell before each code cell; runs top-to-bottom from a fresh
+  kernel (9 code cells, 7 figures, no errors).
+- **M7b ✅ (done):** `05_Evaluation.ipynb` — methodology, per-run metrics table
+  (mean/median/max error, floor accuracy) for the full filter, the error-at-
+  references plot (Run 1), and the fusion ablation (map-only / +BLE / full) as a
+  table + bar chart, with a discussion (floors are the win, BLE neutral, median ≪
+  mean). Imports only from `src/`; runs top-to-bottom from a fresh kernel (5 code
+  cells, 2 figures, no errors).
+- M7c: `Final_Report` assembly (all required sections + related work) — not started.
 
 **Objective:** assemble the final, reproducible Jupyter Notebook with all
 required sections and the related-work discussion.
