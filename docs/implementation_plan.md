@@ -54,8 +54,8 @@ corridors on two floors, with non-linear map constraints and noisy RSSI.
 | M3 | IMU motion model                   | ✅ Done        | `imu.py`                                |
 | M4 | BLE observation model              | ✅ Done        | `ble.py`                                |
 | M5 | Particle filter (core fusion)      | ✅ Done        | `particle_filter.py`                    |
-| M6 | Evaluation & experiments           | ⬜ Planned     | `evaluation.py`, `visualization.py`     |
-| M7 | Notebook assembly & related work   | ⬜ Planned     | `notebooks/`                            |
+| M6 | Evaluation & experiments           | 🟡 In progress | `evaluation.py`, `visualization.py`     |
+| M7 | Notebook assembly & related work   | ✅ Done        | `notebooks/`                            |
 
 Legend: ✅ done · 🟡 partially done · ⬜ not started.
 
@@ -97,7 +97,7 @@ repo skeleton.
 
 ---
 
-### M2 — Building model & reference data  ⬜ (next)
+### M2 — Building model & reference data  ✅ (done)
 
 **Objective:** represent the building for constraints, and load the door
 reference timestamps as ground truth.
@@ -220,7 +220,7 @@ signals more than weak ones (assignment requirement).
 
 ---
 
-### M5 — Particle filter (core fusion)  ⬜
+### M5 — Particle filter (core fusion)  ✅ (done)
 
 **Objective:** fuse motion + BLE + building constraints into a position estimate
 over time. **This is the graded core.**
@@ -484,6 +484,7 @@ Buffer is intentionally kept for the filter (M5), which is the hardest part.
 
 ## 7. Immediate next step
 
-Begin **M2**, starting with the **door reference loader** (parse the xlsx into a
-clean per-run table) and then the **building geometry / beacon placement**, since
-both M4 and M5 depend on having beacon and door positions in world coordinates.
+M0–M5 and M7 are complete. The remaining work is finishing **M6** — the optional
+**M6e** items (estimated trajectory over the floor plan and any parameter-setting
+comparisons) — and a final reproducibility pass over the notebooks before the
+2026-07-22 deadline.
