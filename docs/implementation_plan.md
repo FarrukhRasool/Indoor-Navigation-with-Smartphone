@@ -366,7 +366,7 @@ run the experiments the assignment asks for.
 
 ---
 
-### M7 — Notebook assembly & related work  🟡 (in progress)
+### M7 — Notebook assembly & related work  ✅ (done)
 
 **Progress:**
 - `01_Data_Exploration`, `02_Preprocessing`, `03_Step_Detection` populated
@@ -382,7 +382,19 @@ run the experiments the assignment asks for.
   table + bar chart, with a discussion (floors are the win, BLE neutral, median ≪
   mean). Imports only from `src/`; runs top-to-bottom from a fresh kernel (5 code
   cells, 2 figures, no errors).
-- M7c: `Final_Report` assembly (all required sections + related work) — not started.
+- **M7c ✅ (done):** `Final_Report.ipynb` — the submission master. Covers every
+  required assignment section (setup & data collection, protocol, sensors,
+  preprocessing & synchronisation, step detection & motion model, BLE weighting,
+  building structure, particle-filter modelling & implementation, evaluation
+  methodology, results, discussion of limitations, and the 3-source related work),
+  running the pipeline from `src/` and presenting the headline results (run summary,
+  step-detection accuracy, full-filter trajectory, per-run metrics, ablation chart),
+  with pointers to 01–05 and `Embedded_source_doc.ipynb` for detail. Imports only
+  from `src/`; runs top-to-bottom from a fresh kernel (6 code cells, 2 figures, no
+  errors).
+
+**M7 is complete.** Notebooks 01–05 + Final_Report + the related-work doc together
+form the reproducible submission.
 
 **Objective:** assemble the final, reproducible Jupyter Notebook with all
 required sections and the related-work discussion.

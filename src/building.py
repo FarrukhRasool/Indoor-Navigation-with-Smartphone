@@ -30,9 +30,8 @@ def _distance_point_to_segment(px, py, ax, ay, bx, by):
     """Shortest distance from point (px, py) to the segment a-b."""
     dx, dy = bx - ax, by - ay
     if dx == 0 and dy == 0:
-        # The segment is a single point.
         return math.hypot(px - ax, py - ay)
-    # Project the point onto the segment, clamped to the segment ends.
+
     t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)
     t = max(0.0, min(1.0, t))
     nearest_x = ax + t * dx
