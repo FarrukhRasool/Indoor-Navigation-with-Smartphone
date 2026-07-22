@@ -54,8 +54,8 @@ corridors on two floors, with non-linear map constraints and noisy RSSI.
 | M3 | IMU motion model                   | ✅ Done        | `imu.py`                                |
 | M4 | BLE observation model              | ✅ Done        | `ble.py`                                |
 | M5 | Particle filter (core fusion)      | ✅ Done        | `particle_filter.py`                    |
-| M6 | Evaluation & experiments           | ⬜ Planned     | `evaluation.py`, `visualization.py`     |
-| M7 | Notebook assembly & related work   | ⬜ Planned     | `notebooks/`                            |
+| M6 | Evaluation & experiments           | 🟡 In progress | `evaluation.py`, `visualization.py`     |
+| M7 | Notebook assembly & related work   | ✅ Done        | `notebooks/`                            |
 
 Legend: ✅ done · 🟡 partially done · ⬜ not started.
 
@@ -97,7 +97,7 @@ repo skeleton.
 
 ---
 
-### M2 — Building model & reference data  ⬜ (next)
+### M2 — Building model & reference data  ✅ (done)
 
 **Objective:** represent the building for constraints, and load the door
 reference timestamps as ground truth.
@@ -220,7 +220,7 @@ signals more than weak ones (assignment requirement).
 
 ---
 
-### M5 — Particle filter (core fusion)  ⬜
+### M5 — Particle filter (core fusion)  ✅ (done)
 
 **Objective:** fuse motion + BLE + building constraints into a position estimate
 over time. **This is the graded core.**
@@ -252,34 +252,53 @@ over time. **This is the graded core.**
   building constraints → (5c) add BLE update → (5d) add floor transitions.
 
 **Progress:**
+
+> **Note (particle-filter branch):** the filter was (re)built from scratch on this
+> branch against the new recordings and rescaled geometry. **5a–5d are all done
+> here; M5 is complete.** Bringing up 5c also required calibrating the BLE
+> path-loss model to the data (decision D14).
+
 - **5a ✅ (done):** motion-only single-floor filter in `particle_filter.py`
   (`initialise_particles`, `predict`, `estimate`, `cloud_spread`,
-  `run_motion_only`) plus `visualization.plot_particle_cloud`. The cloud mean
-  tracks the M3 dead-reckoning path (mean gap 1.1–2.4 m), the spread grows from
-  ~0.7 m to ~3.8–4.4 m, and results are deterministic under a fixed seed on all
-  four runs. Figure: `figures/run1_particle_motion_only.png`. See decision D8.
-- **5b ✅ (done):** building-constrained filter. Added `distance_to_corridor` to
-  `building.py`; added `constraint_weights`, `effective_sample_size`, systematic
-  `resample`, and `run_with_constraints` (tunable `wall_sigma`, default 0.1) to
-  `particle_filter.py`; added `visualization.plot_trajectory_on_corridor`. A soft
-  wall (D9) plus resampling snaps the cloud onto the corridor: walkability of the
-  estimate roughly doubles vs 5a (Run 1: 0.04 → 0.23). Confirmed that the map
-  alone cannot correct heading drift — it damps but does not fix the late-run
-  excursion — which motivates the BLE update in 5c. Figure:
-  `figures/run1_particle_constrained.png`. See decision D9.
+  `run_motion_only`); `visualization.plot_particle_cloud` was already present. On
+  the new recordings the cloud mean tracks the (deterministic) dead-reckoning path
+  with a mean gap of ~1.4 m (the expected contraction from averaging over heading
+  noise), the spread grows from ~0.7 m to ~3.3–4.2 m, and results are deterministic
+  under a fixed seed on all four runs. Figure:
+  `figures/run1_particle_motion_only.png`.
+- **5b ✅ (done):** building-constrained filter. Added `constraint_weights`,
+  `effective_sample_size`, systematic `resample`, and `run_with_constraints`
+  (tunable `wall_sigma`, default 0.1) to `particle_filter.py`. (`building.distance_to_corridor`
+  and `visualization.plot_trajectory_on_corridor` were already present.) A soft
+  wall (D9) plus resampling snaps the cloud onto the corridor: on the new
+  recordings the estimate's walkable fraction improves clearly on every run
+  (Run 1: 0.08 → 0.42; Runs 2–4: 0.06→0.16, 0.07→0.29, 0.04→0.30), resampling
+  fires 78–98 times, and results are deterministic under a fixed seed. Confirmed
+  that the map alone cannot correct heading drift — it damps the first traversal
+  onto the corridor but does not fix the late-run excursion — which motivates the
+  BLE update in 5c. Figure: `figures/run1_particle_constrained.png`. See decision D9.
 - **5c ✅ (done):** BLE correction. Added `run_with_ble` (event-driven RSSI weight
-  multiply on top of 5b) plus a beacon overlay in
-  `visualization.plot_trajectory_on_corridor`. Bringing this up surfaced two
-  motion-model calibration bugs, now fixed: step length (D10) and per-run initial
-  heading (D11). Figure: `figures/run1_particle_ble.png`.
+  multiply on top of 5b) to `particle_filter.py`; `visualization.plot_trajectory_on_corridor`
+  already supports a beacon overlay. Bringing it up showed the nominal RSSI model
+  was mis-calibrated (BLE *worsened* the clean run, 1.96 → 4.44 m); calibrating the
+  path-loss parameters against the reference distances (D14) fixed this — BLE now
+  agrees with the map (Run 1: 2.02 m) and is well-behaved on all runs, deterministic
+  under a fixed seed. On single-floor 5c it does not yet strongly improve the door
+  error because the large errors come from the floor-1 portions the filter cannot
+  track; its drift correction should show once floors are added (5d). Figure:
+  `figures/run1_particle_ble.png`.
 - **5d ✅ (done):** floor transitions — the full filter. Added per-particle floor,
   `maybe_change_floor` (staircase-gated stochastic flips), `estimate_floor`,
-  `systematic_resample_indices`, and `run_filter`; added
-  `visualization.plot_floor_over_time` and `plot_trajectory_two_floors`. Floor
-  accuracy averages ~0.66 (0.47–0.88); floor handling changes position error only
-  slightly. Limitations (position drift starving the floor logic, floor locking
-  between staircases, coarse BLE) are documented in D12 and are the ablation/
-  discussion material for M6. Figures: `figures/run1_filter_floor.png`,
+  `systematic_resample_indices`, and `run_filter` (reusing the 5c loop);
+  `visualization.plot_floor_over_time` and `plot_trajectory_two_floors` were already
+  present. On the new recordings floor accuracy averages ~0.59 (0.47–0.70, from the
+  M6 metrics) and the door error over all checkpoints is roughly neutral vs 5c
+  (deterministic under a fixed seed). Diagnosed limitations: runs starting *at* a
+  staircase flip floor
+  spuriously early (Run 1); the calibrated flat path-loss (D14) makes the
+  distance-based floor penalty weak; and position drift can leave the cloud short of
+  a staircase (Run 2 makes 0 flips). These are documented in D12 and are the
+  ablation/discussion material for M6. Figures: `figures/run1_filter_floor.png`,
   `figures/run1_filter_two_floors.png`. See decision D12.
 
 **M5 is complete.** The end-to-end filter (`run_filter`) fuses motion, BLE, and
@@ -288,7 +307,37 @@ system; the quantitative evaluation and ablations follow in M6.
 
 ---
 
-### M6 — Evaluation & experiments  ⬜
+### M6 — Evaluation & experiments  🟡 (in progress)
+
+**Progress:**
+- **M6a ✅ (done):** core metrics in `evaluation.py` — `error_at_references`
+  (per-checkpoint distance error + floor correctness, estimate interpolated to each
+  checkpoint time) and `summary_metrics` (mean / median / max error, floor accuracy,
+  n). Full-filter results: floor accuracy 0.53 / 0.47 / 0.68 / 0.70 (avg ~0.59);
+  mean door error 14.5 / 29.3 / 17.5 / 19.8 m, but median much lower (Run 1: 4.4 m)
+  as the mean is inflated by the floor-1 blow-ups. (Bringing this up also corrected
+  a START/END counting bug in the earlier ad-hoc floor-accuracy numbers.)
+- **M6b ✅ (done):** ablation comparison — `evaluation.compare_metrics(named_trajectories,
+  reference)` returns one metrics row per variant, so map-only (5b) / +BLE (5c) /
+  full (5d) can be compared side by side. Key finding: **floor handling is the big
+  win for floor accuracy** (Run 4: 0.30 → 0.70), BLE is roughly neutral on position
+  (no regressions after D14), and the map provides the base constraint. `evaluation.py`
+  never runs the filter — the caller passes the trajectories.
+- **M6c ✅ (done):** `visualization.plot_error_at_references(per_checkpoint, run_id)`
+  — one bar per door checkpoint (height = position error), coloured by whether the
+  estimated floor is correct (green) or wrong (red). The Run 1 figure makes the M5
+  story visible: the floor-0 leg is floor-*wrong* but position-accurate (~2–6 m,
+  the spurious early flip), while the floor-1 leg is floor-*correct* but drifts (up
+  to ~50 m). Figure: `figures/run1_error_at_references.png`.
+- **M6d ✅ (done):** `visualization.plot_ablation(comparison_table, run_id)` — a
+  two-panel bar chart (mean+median door error on the left, floor accuracy on the
+  right) with the variants map-only / map+BLE / full on the x-axis. The
+  across-runs aggregate makes the headline clear: **position error is flat**
+  (~20 m mean / 16 m median for all three — BLE neutral, floors don't hurt) while
+  **floor accuracy rises 0.47 → 0.47 → 0.60** for the full filter. Figure:
+  `figures/ablation.png`.
+- M6e–…: estimated trajectory over the floor plan, and any parameter comparisons —
+  optional, not started.
 
 **Objective:** measure how good the estimate is, using the door references, and
 run the experiments the assignment asks for.
@@ -317,7 +366,35 @@ run the experiments the assignment asks for.
 
 ---
 
-### M7 — Notebook assembly & related work  ⬜
+### M7 — Notebook assembly & related work  ✅ (done)
+
+**Progress:**
+- `01_Data_Exploration`, `02_Preprocessing`, `03_Step_Detection` populated
+  (earlier); `Embedded_source_doc.ipynb` holds the 3-source related-work discussion.
+- **M7a ✅ (done):** `04_Particle_Filter.ipynb` — the building model (M2), the
+  calibrated BLE observation model (M4, D14), and the filter built up 5a→5d on
+  Run 1, each with its figure, plus the honest limitations. Imports only from
+  `src/`, a markdown cell before each code cell; runs top-to-bottom from a fresh
+  kernel (9 code cells, 7 figures, no errors).
+- **M7b ✅ (done):** `05_Evaluation.ipynb` — methodology, per-run metrics table
+  (mean/median/max error, floor accuracy) for the full filter, the error-at-
+  references plot (Run 1), and the fusion ablation (map-only / +BLE / full) as a
+  table + bar chart, with a discussion (floors are the win, BLE neutral, median ≪
+  mean). Imports only from `src/`; runs top-to-bottom from a fresh kernel (5 code
+  cells, 2 figures, no errors).
+- **M7c ✅ (done):** `Final_Report.ipynb` — the submission master. Covers every
+  required assignment section (setup & data collection, protocol, sensors,
+  preprocessing & synchronisation, step detection & motion model, BLE weighting,
+  building structure, particle-filter modelling & implementation, evaluation
+  methodology, results, discussion of limitations, and the 3-source related work),
+  running the pipeline from `src/` and presenting the headline results (run summary,
+  step-detection accuracy, full-filter trajectory, per-run metrics, ablation chart),
+  with pointers to 01–05 and `Embedded_source_doc.ipynb` for detail. Imports only
+  from `src/`; runs top-to-bottom from a fresh kernel (6 code cells, 2 figures, no
+  errors).
+
+**M7 is complete.** Notebooks 01–05 + Final_Report + the related-work doc together
+form the reproducible submission.
 
 **Objective:** assemble the final, reproducible Jupyter Notebook with all
 required sections and the related-work discussion.
@@ -407,6 +484,7 @@ Buffer is intentionally kept for the filter (M5), which is the hardest part.
 
 ## 7. Immediate next step
 
-Begin **M2**, starting with the **door reference loader** (parse the xlsx into a
-clean per-run table) and then the **building geometry / beacon placement**, since
-both M4 and M5 depend on having beacon and door positions in world coordinates.
+M0–M5 and M7 are complete. The remaining work is finishing **M6** — the optional
+**M6e** items (estimated trajectory over the floor plan and any parameter-setting
+comparisons) — and a final reproducibility pass over the notebooks before the
+2026-07-22 deadline.

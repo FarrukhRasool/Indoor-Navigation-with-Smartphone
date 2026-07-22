@@ -72,8 +72,7 @@ Embedded Intelligence Final Assignment/
     ├── building.py
     ├── particle_filter.py
     ├── evaluation.py
-    ├── visualization.py
-    └── utils.py
+    └── visualization.py
 ```
 
 ---
@@ -99,7 +98,7 @@ list to keep responsibilities from leaking across files.
 - **Depends on:** `imu.py`, `ble.py`, pandas.
 - **Does NOT:** detect steps, model BLE, filter, or plot.
 
-### 3.2 `imu.py` — IMU loading + motion model 🟡
+### 3.2 `imu.py` — IMU loading + motion model ✅
 
 - **Responsibility:** clean IMU sub-streams and derive motion (steps → movement
   vectors).
@@ -108,8 +107,8 @@ list to keep responsibilities from leaking across files.
     accel/gyro/mag/imu_processed DataFrames. ✅
   - `acceleration_magnitude(accel)` — orientation-free magnitude. ✅
   - `detect_steps(accel, ...)` — peak-based step events. ✅
-  - *(planned)* `estimate_step_length(...)`, `estimate_heading(...)`,
-    `build_motion_table(run)` — produce the per-step motion table (§4.2). ⬜
+  - `heading_from_gyro(gyro, ...)` — gyro-integrated relative heading. ✅
+  - `build_motion_table(run, ...)` — the per-step motion table (§4.2). ✅
 - **Inputs:** IMU rows (from `preprocessing.py`), or a `Run`.
 - **Outputs:** clean IMU streams; movement-event list; motion table.
 - **Depends on:** numpy, pandas, scipy.signal.
@@ -133,72 +132,98 @@ list to keep responsibilities from leaking across files.
   does not import `building.py`.)
 - **Does NOT:** process IMU, run the filter, or plot.
 
-### 3.4 `building.py` — building model & constraints ⬜
+### 3.4 `building.py` — building model & constraints ✅
 
 - **Responsibility:** represent the two-floor building geometry and enforce
   movement constraints.
-- **Key functions (planned):**
-  - `beacon_positions() -> dict` — beacon name → (x, y, floor).
-  - `door_positions() -> dict` — room/door → (x, y, floor).
-  - `is_walkable(x, y, floor) -> bool` — inside a corridor / valid area.
-  - `can_change_floor(x, y) -> bool` — inside a staircase zone.
-  - `pixel_to_world(...)` — floor-plan pixels → metric world coordinates.
-- **Inputs:** floor plans + measured/estimated geometry (hard-coded constants
-  derived from the maps).
+- **Key functions:**
+  - `corridor_polyline(floor) -> list` — the corridor centre-line as a list of
+    connected `(x, y)` points (main corridor + east stub). ✅
+  - `distance_to_corridor(x, y, floor) -> float` — shortest distance from a point
+    to the corridor centre-line (uses the `_distance_point_to_segment` helper). ✅
+  - `is_walkable(x, y, floor) -> bool` — within `CORRIDOR_HALF_WIDTH_M` of the
+    corridor. ✅
+  - `can_change_floor(x, y) -> bool` — inside a staircase zone (within
+    `STAIRCASE_RADIUS_M` of the west or east staircase). ✅
+  - `door_positions() -> dict` — `(floor, room)` → `(x, y, floor)`. ✅
+  - `beacon_positions() -> dict` — beacon name → `(x, y, floor)` for the six
+    observed beacons. ✅
+- **Geometry source:** the layout is fixed by module-level constants
+  (`DOOR_SPACING_M`, `MAIN_CORRIDOR_LENGTH_M`, `WEST_OFFSET_M`, …). The metric
+  scale is derived from the counted step totals (decision D4), not from a
+  pixel→metre conversion — there is no `pixel_to_world`.
+- **Inputs:** none at runtime; geometry is hard-coded constants derived from the
+  maps and the reference step counts.
 - **Outputs:** geometry queries used by the filter and evaluation.
-- **Depends on:** numpy (and possibly a light polygon check).
+- **Depends on:** the standard-library `math` module only.
 - **Does NOT:** load sensor data, filter, or plot.
 
-### 3.5 `particle_filter.py` — core fusion ⬜
+### 3.5 `particle_filter.py` — core fusion ✅
 
 - **Responsibility:** estimate position over time by fusing motion + BLE +
   building constraints. This is the graded core.
-- **Key functions (planned):**
-  - `initialise_particles(start_state, n)` — sample around the start.
-  - `predict(particles, step)` — motion update (move + noise).
-  - `apply_constraints(particles, building)` — reject/down-weight invalid states;
-    gate floor changes to staircases.
-  - `update(particles, ble_observation, ble_model, building)` — re-weight on RSSI.
-  - `resample(particles)` — when effective sample size drops.
-  - `estimate(particles)` — weighted-mean position.
-  - `run_filter(run, motion_table, building, ...)` — the end-to-end loop that
-    walks the shared timeline, predicting on steps and updating on BLE events.
-- **Inputs:** motion table (`imu.py`), BLE model (`ble.py`), building
-  (`building.py`).
+- **Key functions:**
+  - `initialise_particles(start, n_particles, rng, spread)` — sample a cloud
+    around the known start position. ✅
+  - `predict(x, y, step, rng, length_sigma)` — motion update: move every particle
+    by one step of the motion table (with length/heading noise). ✅
+  - `constraint_weights(x, y, floor, building, wall_sigma)` — soft-wall weight per
+    particle from `building.distance_to_corridor` (the building update). ✅
+  - `effective_sample_size(weights)`, `systematic_resample_indices(weights, rng)`,
+    `resample(x, y, weights, rng)` — the resampling machinery (resample when ESS
+    drops). ✅
+  - `maybe_change_floor(x, y, floor, building, rng, p)` — staircase-gated
+    stochastic floor flips. ✅
+  - `estimate(x, y)` (mean position), `estimate_floor(floor, weights)` (weighted
+    majority floor), `cloud_spread(x, y)` (RMS spread diagnostic). ✅
+  - Staged runners, each returning an estimated trajectory:
+    `run_motion_only` (5a), `run_with_constraints` (5b, + map),
+    `run_with_ble` (5c, + RSSI weighting), `run_filter` (5d, the full filter with
+    floor transitions). ✅
+- **Inputs:** motion table (`imu.py`), the cleaned BLE stream and `ble` model,
+  the `building` module — all **passed in as arguments** to the runners.
 - **Outputs:** estimated trajectory (§4.4).
-- **Depends on:** `building.py`, `ble.py` (model), numpy.
+- **Depends on:** numpy, pandas. The `building` and `ble` modules are **passed in
+  as arguments** (not imported), which keeps the filter decoupled from geometry
+  and the observation model.
 - **Does NOT:** load/parse data or plot.
 
-### 3.6 `evaluation.py` — reference data + metrics ⬜
+### 3.6 `evaluation.py` — reference data + metrics ✅
 
 - **Responsibility:** load the door reference ground truth and compute error
   metrics against the estimated trajectory.
-- **Key functions (planned):**
-  - `load_reference(run_id) -> DataFrame` — parse `Paths_references.xlsx` into a
-    tidy per-run table (§4.3), aligned to `t_rel`.
-  - `error_at_references(trajectory, reference, building)` — distance between the
-    estimate at each door time and the door's true position.
-  - `summary_metrics(...)` — mean/median/max error, floor accuracy, stability.
-- **Inputs:** `Paths_references.xlsx`, estimated trajectory, building positions.
-- **Outputs:** reference table; metric tables.
-- **Depends on:** pandas, openpyxl, `building.py`.
-- **Does NOT:** filter or draw plots (delegates drawing to `visualization.py`).
+- **Key functions:**
+  - `load_reference(run_id, reference_file, start_offset_s) -> DataFrame` — parse
+    `Paths_references.xlsx` into a tidy per-run table (§4.3), aligned to `t_rel`
+    and with each door's `(x, y)` attached from `building.door_positions`. Uses
+    the `parse_door` and `find_header_row` helpers. ✅
+  - `error_at_references(trajectory, reference) -> DataFrame` — per-checkpoint
+    position error (estimate interpolated to each checkpoint time) plus whether
+    the estimated floor is correct. The door positions already live in the
+    reference table, so `building` is not needed here. ✅
+  - `summary_metrics(per_checkpoint) -> dict` — mean/median/max error, floor
+    accuracy, and checkpoint count. ✅
+  - `compare_metrics(named_trajectories, reference) -> DataFrame` — one
+    `summary_metrics` row per named variant (the fusion ablation). ✅
+- **Inputs:** `Paths_references.xlsx`, an estimated trajectory (passed in).
+- **Outputs:** reference table; per-checkpoint and summary metric tables.
+- **Depends on:** pandas (openpyxl engine for the xlsx), numpy, `building.py`.
+- **Does NOT:** run the filter or draw plots (delegates drawing to
+  `visualization.py`).
 
-### 3.7 `visualization.py` — plotting only 🟡
+### 3.7 `visualization.py` — plotting only ✅
 
 - **Responsibility:** all plotting. Takes already-prepared data and draws it.
 - **Key functions:**
-  - `plot_acceleration_with_steps(accel, steps, ...)` ✅
-  - *(planned)* `plot_trajectory_on_map`, `plot_ble_rssi`, `plot_error_at_doors`,
-    `plot_beacons_and_doors`. ⬜
-- **Depends on:** matplotlib (+ reads `Run`/trajectory/metric structures).
+  - IMU / step diagnostics: `plot_acceleration_with_steps`, `plot_heading`,
+    `plot_dead_reckoning`, `plot_step_count_comparison`. ✅
+  - Filter trajectories: `plot_particle_cloud`, `plot_trajectory_on_corridor`,
+    `plot_trajectory_two_floors`, `plot_floor_over_time`. ✅
+  - Evaluation: `plot_error_at_references` (one bar per door checkpoint, coloured
+    by floor correctness), `plot_ablation` (map-only / +BLE / full comparison). ✅
+- **Depends on:** matplotlib, numpy, and `imu.py` (for
+  `plot_acceleration_with_steps`); reads `Run` / trajectory / metric structures.
 - **Does NOT:** compute anything (no filtering, preprocessing, or metrics).
-
-### 3.8 `utils.py` — shared helpers ⬜
-
-- **Responsibility:** small generic helpers shared across modules (e.g. angle
-  wrapping, distance, seeding). Kept minimal to avoid a junk-drawer.
-- **Does NOT:** hold domain logic that belongs in a specific module.
 
 ---
 
@@ -220,7 +245,7 @@ Run
  └─ meta: dict                  # counts, dropped rows, beacon stats, flags
 ```
 
-### 4.2 Motion table (from `imu.py`) ⬜
+### 4.2 Motion table (from `imu.py`) ✅
 
 One row per detected step:
 
@@ -231,7 +256,7 @@ One row per detected step:
 | `heading`     | estimated travel direction (rad, world)  |
 | `heading_sigma` | angular uncertainty of the motion sector |
 
-### 4.3 Reference table (from `evaluation.py`) ⬜
+### 4.3 Reference table (from `evaluation.py`) ✅
 
 One row per door checkpoint:
 
@@ -244,7 +269,7 @@ One row per door checkpoint:
 | `t_rel`       | aligned time on the processed timeline     |
 | `x`, `y`      | metric position of the door (from building)|
 
-### 4.4 Estimated trajectory (from `particle_filter.py`) ⬜
+### 4.4 Estimated trajectory (from `particle_filter.py`) ✅
 
 | column | meaning                          |
 |--------|----------------------------------|
@@ -252,7 +277,7 @@ One row per door checkpoint:
 | `x`, `y` | estimated position (m)         |
 | `floor`| estimated floor (0 or 1)         |
 
-### 4.5 Particle state (internal to `particle_filter.py`) ⬜
+### 4.5 Particle state (internal to `particle_filter.py`) ✅
 
 Each particle: `(x, y, floor, heading, weight)`. Represented compactly (e.g.
 numpy arrays) for speed; never leaks outside the filter.
@@ -295,8 +320,9 @@ resampling of BLE onto a fixed grid).
 - **Headings:** radians in the world frame; because the phone is pocket-carried,
   heading is treated as **relative** and anchored using the known start
   direction and corridor geometry.
-- **Pixel→metre scale:** documented once in `building.py`, derived from a known
-  building dimension on the floor plans.
+- **Metric scale:** documented once in `building.py` via the `DOOR_SPACING_M`
+  constant, derived from the counted step totals in the reference (decision D4),
+  not from a pixel→metre conversion of the floor plans.
 
 ---
 
@@ -305,20 +331,21 @@ resampling of BLE onto a fixed grid).
 ```
 notebooks ─────────────► (everything, for orchestration)
 
-visualization ─► reads Run / trajectory / metric structures (no compute)
-
-particle_filter ─► building, ble (model), imu (motion table), utils
-evaluation ─────► building, (reads trajectory), openpyxl
-imu ────────────► numpy, pandas, scipy
-ble ────────────► pandas, building (for beacon positions, at model time)
-building ───────► numpy
+visualization ─► matplotlib, numpy, imu (for the step-plot helper)
+particle_filter ─► numpy, pandas   (building + ble passed in as arguments)
+evaluation ─────► numpy, pandas, building   (pandas uses openpyxl for the xlsx)
+imu ────────────► numpy, pandas, scipy.signal
+ble ────────────► numpy, pandas   (beacon positions passed in, no building import)
+building ───────► math (standard library)
 preprocessing ──► imu, ble, pandas
 ```
 
 Rules:
 - Lower layers never import higher layers (no `imu` importing `particle_filter`).
 - `visualization` and notebooks are the only places allowed to depend broadly.
-- `building` is a leaf dependency (geometry only), imported by several modules.
+- `building` is a leaf dependency (geometry only). It is imported directly only
+  by `evaluation`; the filter and `ble` receive geometry/positions as arguments
+  instead, which keeps them decoupled.
 
 ---
 

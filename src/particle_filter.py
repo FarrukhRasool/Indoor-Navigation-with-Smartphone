@@ -5,24 +5,20 @@ particle_filter.py
 The particle filter: the core that estimates position over time by fusing the
 IMU motion model, the BLE observations, and the building constraints.
 
-This file builds the particle filter in four sub-steps:
+This file currently implements sub-step 5a: a MOTION-ONLY filter on a single
+floor. It moves a cloud of particles using the per-step motion table (from
+imu.py) and reports the cloud's mean position over time. There is no BLE
+correction, no building constraint, and no floor change yet -- those are added in
+the later sub-steps (5b-5d).
 
-    - 5a (run_motion_only): move a cloud of particles using the per-step motion
-      table (from imu.py) and report the cloud's mean over time. No correction,
-      so the weights stay uniform and the cloud just spreads out.
-    - 5b (run_with_constraints): add the building map as a soft constraint. Each
-      step, particles are weighted by how walkable their position is, the estimate
-      is the weighted mean, and the cloud is resampled when a few particles start
-      to dominate. This keeps the estimate on the corridors.
-    - 5c (run_with_ble): multiply in the BLE observation likelihood (ble.py) as an
-      extra weight whenever a reading arrives, giving the absolute reference that
-      corrects heading drift.
-    - 5d (run_filter): the full filter. Each particle also carries a floor, and may
-      switch floor only inside a staircase zone; the BLE update then keeps whichever
-      particles guessed the right floor. This is the end-to-end fusion.
+Because there is no measurement to correct the motion, the particle weights stay
+uniform and the cloud simply spreads out. That growing spread is exactly the
+"error-prone motion sector" the assignment describes, and it is the scaffolding
+the BLE update and map constraints plug into next.
 
-A particle is its position (x, y) plus, from 5d, a floor. Heading is taken fresh
-from the motion table on each step (with noise), so it is not stored per particle.
+For 5a a particle is just its position (x, y); heading is taken fresh from the
+motion table on each step. Persistent per-particle heading and floor are added in
+the later sub-steps that need them.
 
 This module does NOT load or parse data and does NOT draw plots.
 """
@@ -545,11 +541,10 @@ def run_filter(run, motion_table, start, floor, building, ble,
                                             floor_change_prob)
 
         # Both floors share the same corridor footprint, so walkability does not
-        # depend on the floor; we evaluate the map constraint once.
+        # depend on the floor; we evaluate the map constraint once. The BLE update
+        # then uses each particle's own floor, so cross-floor beacons are penalised.
         weights = constraint_weights(x, y, floor, building, wall_sigma)
 
-        # Apply every BLE reading up to this step's time, now using each particle's
-        # own floor so cross-floor beacons are correctly penalised.
         while ble_index < len(ble_t) and ble_t[ble_index] <= step.t_rel:
             position = beacon_positions.get(ble_beacon[ble_index])
             if position is not None:

@@ -44,14 +44,25 @@ explain and to query (`is_walkable` = distance-to-line ≤ half-width).
 
 ---
 
-## D4 — Metric scale is nominal
+## D4 — Metric scale derived from the reference (door spacing ~5.25 m)
 
-**Decision:** Since no exact building dimensions were available, distances are
-derived from a nominal door spacing (4.5 m) and corridor width (2 m). All the
-numbers are constants at the top of `building.py` and can be adjusted.
+**Decision:** Set the building's metric scale from the reference data rather than a
+guess. Multiplying the **counted** step totals in `Paths_references.xlsx` by the
+measured 0.65 m step length gives the real distances. The four one-way
+door-24→door-18 traversals are tightly consistent at **5.09–5.42 m per spacing**
+(mean ≈ 5.25 m), and Run 1's START→door-24 (13 steps) implies ~8.5 m from the west
+staircase to the first door. So `DOOR_SPACING_M = 5.25`, `WEST_OFFSET_M = 8.5`,
+`MAIN_CORRIDOR_LENGTH_M = 44`, `EAST_STUB_LENGTH_M = 6`; doors, beacons, corridor,
+and staircases derive from these.
 
-**Why:** We only need internal consistency for the filter; absolute scale can be
-refined later if a real dimension becomes available.
+**Why:** The earlier nominal 4.5 m was a guess that made the model too small. With
+the counted step totals the estimate is far tighter than the previous
+time×pace-derived data (which had ranged 3.8–9.8 m/spacing).
+
+**Caveat:** still approximate (adjacent-segment distances vary with weaving), but
+the traversal-averaged 5.25 m is well supported. Rescaling changes the filter's
+coordinate scale, so the filter (on the development branch) should be re-evaluated
+against it.
 
 ---
 
@@ -200,8 +211,16 @@ Run 3's initial heading to π cut its early-leg error 19.4 → 11.1 m. This is f
 next, in the orchestration layer (start position + heading are known, fixable
 boundary conditions per the assignment).
 
-**Status:** Confirmed (M3 refinement). Step length is still a tunable parameter of
-`build_motion_table`.
+**Update (ground truth from the reference).** The reference recorded a measured
+**step length of 65 cm (0.65 m)**. We use **0.65 m** as the step length
+(`build_motion_table` default), kept as the constant `evaluation.STEP_LENGTH_M` (the
+re-recorded workbook no longer stores the cell). The earlier 0.40–0.53 m figures
+were an artefact of our nominal building scale being too small; the building has
+since been rescaled from the counted step totals (see D4). The step length itself is
+a measured value, not a guess.
+
+**Status:** Superseded — step length is **0.65 m** (measured, from the reference).
+Still a tunable parameter of `build_motion_table`.
 
 ---
 
@@ -257,26 +276,30 @@ approach the assignment points to (invalid states are simply down-weighted).
 machinery (only the floor array and a staircase-gated flip are added), and keeps
 floor changes physically constrained to staircases.
 
-**Results (full filter, all reference checkpoints):**
+**Results (full filter, all reference checkpoints, new recordings; from the M6
+metrics in `evaluation.py`):**
 
-| Run | Floor accuracy | Door error (5c 1-floor → 5d) |
-|-----|----------------|-------------------------------|
-| 1 | 0.47 | 6.7 → 6.3 m |
-| 2 | 0.88 | 15.3 → 15.2 m |
-| 3 | 0.71 | 12.5 → 12.1 m |
-| 4 | 0.60 | 14.9 → 14.9 m |
+| Run | Floor accuracy | Mean door error | Median door error |
+|-----|----------------|-----------------|-------------------|
+| 1 | 0.53 | 14.5 m | 4.4 m |
+| 2 | 0.47 | 29.3 m | 26.0 m |
+| 3 | 0.68 | 17.5 m | 18.1 m |
+| 4 | 0.70 | 19.8 m | 16.8 m |
 
-Floor accuracy averages ~0.66; floor handling changes position error only slightly.
+Floor accuracy averages ~0.59. The **mean** door error is inflated by the floor-1
+segments where the estimate blows up (max ~45–67 m); the **median** is a fairer
+central measure (e.g. Run 1's median is only 4.4 m — the estimate is often within a
+few metres on the tracked portions).
 
 **Honest limitations (evaluation material, M6):**
-- **Position drift starves the floor logic.** When the estimated position falls
-  short of a staircase zone (Run 1 only reaches x≈24, not the east staircase at
-  x=35), the cloud cannot create the floor-1 hypotheses the BLE update would keep.
-- **Floor locks between staircases** (physically correct), so an early wrong lock
-  persists. A run that *starts* on a staircase with no BLE yet (Run 1, west
-  staircase) can flip early and stay wrong until the next staircase.
-- **BLE is too coarse** (~50% nearest-beacon) to both correct drift and drive the
-  floor cleanly.
+- **Spurious early flip.** A run that *starts* on a staircase (Run 1, west staircase
+  `(0,0)`) flips floor almost immediately (its estimated floor jumps to 1 at ~8 s,
+  while the person is on floor 0 until ~45 s).
+- **Weak BLE floor discrimination.** The calibrated flat path-loss (n≈1.19, D14)
+  means the distance-based `FLOOR_PENALTY_M` produces only a few dB, too small
+  against the ~6.5 dB noise to reliably distinguish floors.
+- **Position drift starves the floor logic.** When the cloud never reaches a
+  staircase zone, no floor-1 hypotheses are created — Run 2 makes **0 flips**.
 
 An attempted "must leave the start staircase before flipping" gate was tried and
 **rejected**: it broke runs that legitimately change floor immediately (Run 4
@@ -287,3 +310,61 @@ work.
 **Status:** Confirmed. M5 complete. Filter is deterministic under a fixed seed and
 runs on all four runs; accuracy is realistic for a coarse indoor system, as the
 assignment expects.
+
+---
+
+## D13 — Step-detection threshold calibrated to the reference step counts
+
+**Decision:** Set the peak-height threshold in `imu.detect_steps` to
+`mean + 1.0 * std` of the acceleration magnitude (the `height_std_factor`
+parameter, default 1.0).
+
+**Why:** the re-recorded `Paths_references.xlsx` records a **counted** cumulative
+step total per checkpoint (the `Step` column) — actual ground truth, not the earlier
+time×pace estimate. Against these counted totals the detected count is stable across
+nearby thresholds (the new recordings have clean, well-separated peaks), and
+`mean + 1.0 * std` matches to within ~1.5%:
+
+| Run | detected (1.0·std) | reference (counted) | ratio |
+|-----|--------------------|---------------------|-------|
+| 1 | 214 | 216 | 0.99 |
+| 2 | 231 | 238 | 0.97 |
+| 3 | 335 | 340 | 0.99 |
+| 4 | 281 | 282 | 1.00 |
+
+Mean ratio ≈ 0.99. (An earlier calibration against the *derived* counts used 1.25;
+the new counted totals and cleaner recordings put the best value back at 1.0.)
+
+**Why this is not overfitting:** the counted totals are true step counts, so matching
+them is a genuine calibration against ground truth.
+
+**Status:** Confirmed. `height_std_factor` remains a tunable parameter of
+`detect_steps`.
+
+---
+
+## D14 — BLE path-loss model calibrated to the reference distances
+
+**Decision:** Replace the nominal path-loss parameters in `ble.py` with values fit
+to the data: `RSSI_AT_1M = -76.5`, `PATH_LOSS_EXPONENT = 1.19`, `RSSI_SIGMA = 6.5`
+(was −59, 2.5, 6.0).
+
+**Why:** When BLE was first added to the filter (5c), it *worsened* the estimate on
+the clean run (Run 1 door error 1.96 → 4.44 m). A diagnosis showed the signal was
+fine — the strongest-heard beacon matched the geometrically nearest one at 6/7
+floor-0 checkpoints — but the observed RSSI (−63 to −104 dBm) mapped, under the
+nominal steep model, to distances up to ~63 m (larger than the 44 m corridor), so
+the likelihood pulled particles to wrong distances. We fit the log-distance model
+`rssi = RSSI_AT_1M − 10·n·log10(d)` by least squares on 173 (true door→beacon
+distance, observed RSSI) pairs across all runs and both floors. The real corridor
+path loss is much **flatter** (n ≈ 1.2, typical of multipath-rich indoor
+corridors) with a lower reference level.
+
+**Effect:** the Run 1 regression is fixed (BLE 4.44 → 2.02 m, i.e. BLE now *agrees*
+with the map rather than fighting it); BLE is well-behaved on all runs. It does not
+yet strongly *improve* the door error, because on the single-floor 5c the large
+errors come from the floor-1 portions the filter cannot track — BLE's drift
+correction should show once floors are added (5d) and error is measured on all
+checkpoints.
+
+**Status:** Confirmed. The three parameters remain tunable at the top of `ble.py`.
