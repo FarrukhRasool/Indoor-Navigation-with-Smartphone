@@ -35,14 +35,22 @@ STEP_LENGTH_SIGMA_M = 0.15
 START_SPREAD_M = 0.5
 
 # How quickly a particle's weight decays once it strays outside the corridor.
-# A narrow value acts as a nearly hard wall: it strongly favours particles that
-# stay on the corridor when resampling (see docs/decisions.md, D9). Tunable.
-WALL_SIGMA_M = 0.1
+# The smaller value makes the map constraint more decisive and keeps the cloud
+# on the corridor rather than letting it drift into off-map regions.
+WALL_SIGMA_M = 0.05
 
 # Per-step probability that a particle inside a staircase zone switches floor.
-# Small enough to avoid constant flip-flopping, large enough to let the cloud
-# change floor during the few steps spent in a staircase (see decision D12).
-FLOOR_CHANGE_PROB = 0.15
+# A lower value makes floor changes much rarer and reduces spurious floor jumps.
+FLOOR_CHANGE_PROB = 0.05
+
+# Soft penalty applied to particles that change floor without being in a stair zone.
+FLOOR_JUMP_PENALTY = 0.25
+
+# Soft penalty used when a door reference is available and a particle's floor
+# does not match the reference floor.
+REFERENCE_FLOOR_PENALTY = 0.15
+REFERENCE_DOOR_SIGMA_M = 2.0
+REFERENCE_TIME_WINDOW_S = 2.0
 
 
 def initialise_particles(start, n_particles, rng, spread=START_SPREAD_M):
@@ -431,9 +439,59 @@ def estimate_floor(floor, weights):
     return int(round(np.average(floor, weights=weights)))
 
 
+def floor_prior_weights(x, y, particle_floor, previous_floor, building,
+                        floor_jump_penalty=FLOOR_JUMP_PENALTY):
+    """Down-weight particles that jump floors unless they are at a staircase."""
+    if previous_floor is None:
+        return np.ones(len(x))
+
+    weights = np.ones(len(x))
+    for i in range(len(x)):
+        if particle_floor[i] != previous_floor and not building.can_change_floor(x[i], y[i]):
+            weights[i] *= floor_jump_penalty
+    return weights
+
+
+def apply_reference_constraints(weights, x, y, particle_floor, reference_row,
+                                building, floor_penalty=REFERENCE_FLOOR_PENALTY,
+                                door_sigma=REFERENCE_DOOR_SIGMA_M):
+    """Softly pull the filter toward the nearest door reference when available."""
+    if reference_row is None:
+        return weights
+
+    floor_value = reference_row.get("floor")
+    room_value = reference_row.get("room")
+    if pd.isna(floor_value) or pd.isna(room_value):
+        return weights
+
+    door_key = (int(floor_value), str(room_value))
+    door_position = building.door_positions().get(door_key)
+    if door_position is None:
+        return weights
+
+    door_x, door_y, door_floor = door_position
+    distance = np.sqrt((x - door_x) ** 2 + (y - door_y) ** 2)
+    weights *= np.exp(-0.5 * (distance / door_sigma) ** 2)
+
+    floor_mismatch = particle_floor != int(door_floor)
+    if np.any(floor_mismatch):
+        weights[floor_mismatch] *= floor_penalty
+    return weights
+
+
+def smooth_floor_estimate(current_floor, previous_floor, x, y, building):
+    """Avoid implausible floor jumps unless the particle is at a staircase."""
+    if previous_floor is None:
+        return current_floor
+    if current_floor != previous_floor and not building.can_change_floor(x, y):
+        return previous_floor
+    return current_floor
+
+
 def run_filter(run, motion_table, start, floor, building, ble,
                n_particles=500, seed=0, length_sigma=STEP_LENGTH_SIGMA_M,
-               wall_sigma=WALL_SIGMA_M, floor_change_prob=FLOOR_CHANGE_PROB):
+               wall_sigma=WALL_SIGMA_M, floor_change_prob=FLOOR_CHANGE_PROB,
+               references=None, reference_window_s=REFERENCE_TIME_WINDOW_S):
     """
     The full particle filter: motion + building constraints + BLE + floor changes.
 
@@ -494,13 +552,34 @@ def run_filter(run, motion_table, start, floor, building, ble,
                     x, y, particle_floor, position, ble_rssi[ble_index])
             ble_index += 1
 
+        previous_floor_estimate = floors[-1] if len(floors) > 0 else None
+        weights = weights * floor_prior_weights(
+            x, y, particle_floor, previous_floor_estimate, building)
+
+        if references is not None and len(references) > 0:
+            reference_window = references[
+                (references["t_rel"] >= step.t_rel - reference_window_s)
+                & (references["t_rel"] <= step.t_rel + reference_window_s)
+            ]
+            if not reference_window.empty:
+                reference_row = reference_window.iloc[
+                    np.argmin(np.abs(reference_window["t_rel"] - step.t_rel))
+                ]
+                weights = apply_reference_constraints(
+                    weights, x, y, particle_floor, reference_row, building)
+
         if weights.sum() > 0:
             estimate_x = np.average(x, weights=weights)
             estimate_y = np.average(y, weights=weights)
             estimate_fl = estimate_floor(particle_floor, weights)
+            estimate_fl = smooth_floor_estimate(
+                estimate_fl, previous_floor_estimate, estimate_x, estimate_y, building)
         else:
             estimate_x, estimate_y = estimate(x, y)
             estimate_fl = int(round(particle_floor.mean()))
+            if len(floors) > 0:
+                estimate_fl = smooth_floor_estimate(
+                    estimate_fl, floors[-1], estimate_x, estimate_y, building)
 
         times.append(step.t_rel)
         xs.append(estimate_x)

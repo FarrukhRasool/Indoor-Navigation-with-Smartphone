@@ -7,6 +7,7 @@ import pandas as pd
 
 import imu
 import ble
+import utils
 
 
 
@@ -90,8 +91,19 @@ def build_metadata(raw_df, source_counts, imu_streams, ble_stream,
     return meta
 
 
-def load_run(run_id, raw_dir=RAW_DATA_DIR):
+def load_run(run_id=None, raw_dir=RAW_DATA_DIR):
+    """
+    Load and clean one measurement run, returning a Run object.
 
+    This is the function notebooks should call. It re-uses imu.py and ble.py so
+    the cleaning logic lives in one place each.
+
+    If run_id is None, the globally selected path (via utils.set_active_run_id)
+    is used.
+    """
+    run_id = utils.resolve_run_id(run_id)
+
+    # 1. Load the raw recording.
     raw_df = pd.read_csv(run_file_path(run_id, raw_dir))
     source_counts = raw_df["source"].value_counts().to_dict()
     imu_rows = raw_df[raw_df["source"] == "imu"]

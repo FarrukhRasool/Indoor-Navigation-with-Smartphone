@@ -33,15 +33,11 @@ def extract_ble_stream(ble_rows, t0_ms):
     return clean
 
 # Path-loss model parameters (nominal indoor values; tune during filter work).
-# Path-loss parameters calibrated by least-squares fit of RSSI vs log10(distance)
-# on the reference checkpoints (true door->beacon distances paired with the
-# observed RSSI). The corridor path loss is much flatter than the nominal free
-# space value (signals bounce indoors). See decision D14.
-RSSI_AT_1M = -76.5          # expected RSSI one metre from a beacon (dBm)
-PATH_LOSS_EXPONENT = 1.19   # how fast RSSI decays with distance (2 = free space)
-RSSI_SIGMA = 6.5            # RSSI measurement noise (dBm), width of the likelihood
+RSSI_AT_1M = -59.0          # expected RSSI one metre from a beacon (dBm)
+PATH_LOSS_EXPONENT = 2.5    # how fast RSSI decays with distance (2 = free space)
+RSSI_SIGMA = 4.0            # narrower likelihood makes strong RSSI updates more decisive
 MIN_DISTANCE_M = 1.0        # floor for distance, avoids log10(0) right at a beacon
-FLOOR_PENALTY_M = 6.0       # extra distance when a particle is on the other floor
+FLOOR_PENALTY_M = 9.0       # stronger penalty for particles that are on the wrong floor
 
 
 def expected_rssi(distance_m):
