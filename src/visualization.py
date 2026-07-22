@@ -10,11 +10,9 @@ def plot_acceleration_with_steps(accel, steps, run_id=None, ax=None):
     if ax is None:
         _, ax = plt.subplots(figsize=(12, 4))
 
-    # The continuous acceleration magnitude signal.
     ax.plot(accel["t_rel"], magnitude, linewidth=0.8,
             color="steelblue", label="acceleration magnitude")
 
-    # A red dot on each detected step.
     ax.scatter(steps["t_rel"], steps["magnitude"],
                color="red", s=20, zorder=3,
                label="detected step (%d)" % len(steps))
@@ -100,7 +98,6 @@ def plot_particle_cloud(trajectory, spread, dead_reckoning=None,
     ax.plot(trajectory["x"], trajectory["y"], "-",
             color="steelblue", linewidth=1.2, label="particle mean")
 
-    # Uncertainty rings at a few evenly spaced points along the path.
     ring_indices = np.linspace(0, len(trajectory) - 1, n_rings).astype(int)
     for i in ring_indices:
         circle = plt.Circle((trajectory["x"].iloc[i], trajectory["y"].iloc[i]),
@@ -132,7 +129,6 @@ def plot_trajectory_on_corridor(trajectory, corridor_polyline, half_width,
     corridor_x = [point[0] for point in corridor_polyline]
     corridor_y = [point[1] for point in corridor_polyline]
 
-    # Schematic corridor band (thick, light) plus a crisp centre-line.
     ax.plot(corridor_x, corridor_y, "-", color="lightsteelblue",
             linewidth=16, alpha=0.5, solid_capstyle="round", zorder=0)
     ax.plot(corridor_x, corridor_y, "--", color="gray", linewidth=1.0,
@@ -167,7 +163,6 @@ def plot_trajectory_on_corridor(trajectory, corridor_polyline, half_width,
 
 
 def _draw_corridor(ax, corridor_polyline):
-    """Draw the corridor centre-line and a schematic width band on an axis."""
     corridor_x = [point[0] for point in corridor_polyline]
     corridor_y = [point[1] for point in corridor_polyline]
     ax.plot(corridor_x, corridor_y, "-", color="lightsteelblue",
@@ -231,20 +226,6 @@ def plot_trajectory_two_floors(trajectory, corridor_polyline, half_width,
 
 
 def plot_error_at_references(per_checkpoint, run_id=None, ax=None):
-    """
-    Plot the position error at each door reference checkpoint.
-
-    One bar per checkpoint (height = distance error in metres), coloured by whether
-    the estimated floor is correct (green) or wrong (red). This is the assignment's
-    "errors at reference points" view: it shows where the estimate is accurate and
-    which checkpoints have the wrong floor.
-
-    Parameters
-    ----------
-    per_checkpoint : DataFrame
-        From evaluation.error_at_references (columns include number, error_m,
-        floor_correct).
-    """
     if ax is None:
         _, ax = plt.subplots(figsize=(11, 4))
 
@@ -272,19 +253,6 @@ def plot_error_at_references(per_checkpoint, run_id=None, ax=None):
 
 
 def plot_ablation(comparison_table, run_id=None):
-    """
-    Bar chart of the fusion ablation (from evaluation.compare_metrics).
-
-    Two panels with the variants (map-only, map+BLE, full) on the x-axis: the left
-    shows mean and median door error, the right shows floor accuracy. This makes
-    each fusion component's contribution visible at a glance.
-
-    Parameters
-    ----------
-    comparison_table : DataFrame
-        One row per variant, with columns variant, mean_error_m, median_error_m,
-        floor_accuracy (from compare_metrics, per run or averaged across runs).
-    """
     variants = comparison_table["variant"].values
     x = np.arange(len(variants))
     width = 0.35

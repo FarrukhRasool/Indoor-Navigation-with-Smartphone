@@ -3,7 +3,6 @@ import pandas as pd
 from scipy.signal import find_peaks
 
 
-# The four IMU sub-streams we expect, identified by the "id" column.
 IMU_TYPES = ["accel", "gyro", "mag", "imu_processed"]
 
 
@@ -40,7 +39,6 @@ def detect_steps(accel, min_seconds_between_steps=0.3, height_std_factor=1.0):
     magnitude = acceleration_magnitude(accel)
     height_threshold = magnitude.mean() + height_std_factor * magnitude.std()
 
-    # Convert the minimum time gap into a number of samples for find_peaks.
     sampling_rate_hz = len(accel) / (accel["t_rel"].max() - accel["t_rel"].min())
     min_distance_samples = int(min_seconds_between_steps * sampling_rate_hz)
 
@@ -50,7 +48,6 @@ def detect_steps(accel, min_seconds_between_steps=0.3, height_std_factor=1.0):
         distance=min_distance_samples,
     )
 
-    # Turn the detected peaks into a simple list of movement events.
     steps = accel.iloc[peak_indices][["t_ms", "t_rel"]].copy()
     steps["magnitude"] = magnitude.iloc[peak_indices].values
     steps = steps.reset_index(drop=True)
@@ -73,7 +70,6 @@ def heading_from_gyro(gyro, gravity_direction, initial_heading=0.0,
     if remove_bias:
         yaw_rate = yaw_rate - yaw_rate.median()
 
-    # Integrate rate over time: heading(t) = initial + sum(rate * dt).
     dt = gyro["t_rel"].diff().fillna(0.0)
     heading = initial_heading + (yaw_rate * dt).cumsum()
 
@@ -86,7 +82,6 @@ def build_motion_table(run, step_length=0.65, initial_heading=0.0,
     gravity_direction = estimate_gravity_direction(run.accel)
     heading_series = heading_from_gyro(run.gyro, gravity_direction, initial_heading)
 
-    # Look up the heading at each step time.
     step_heading = np.interp(steps["t_rel"],
                              heading_series["t_rel"],
                              heading_series["heading"])

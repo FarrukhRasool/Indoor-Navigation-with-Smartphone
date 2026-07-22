@@ -31,16 +31,15 @@ class Run:
     run_id: int
     t0_ms: int
     duration_s: float
-    accel: pd.DataFrame          # raw accelerometer (used for step detection)
-    gyro: pd.DataFrame           # raw gyroscope
-    mag: pd.DataFrame            # raw magnetometer
-    imu_processed: pd.DataFrame  # app-filtered IMU (comparison only)
-    ble: pd.DataFrame            # clean beacon RSSI observations
-    meta: dict                   # counts, dropped rows, beacon stats, flags
+    accel: pd.DataFrame         
+    gyro: pd.DataFrame           
+    mag: pd.DataFrame           
+    imu_processed: pd.DataFrame  
+    ble: pd.DataFrame            
+    meta: dict                   
 
 
 def run_file_path(run_id, raw_dir=RAW_DATA_DIR):
-    """Return the CSV path for a given run id."""
     return os.path.join(raw_dir, RUN_FILE_PATTERN.format(run_id=run_id))
 
 

@@ -18,14 +18,6 @@ REFERENCE_COLUMNS = {
 
 
 def parse_door(text):
-    """
-    Split a door label into (floor, room).
-
-    "0 24"  -> (0, "24")
-    "1 21a" -> (1, "21a")
-    "START" -> (None, "START")
-    "END"   -> (None, "END")
-    """
     text = str(text).strip()
     if text in ("START", "END"):
         return None, text
@@ -80,35 +72,12 @@ def load_reference(run_id, reference_file=REFERENCE_FILE, start_offset_s=0.0):
 
 
 def error_at_references(trajectory, reference):
-    """
-    Compare an estimated trajectory against the door reference checkpoints.
-
-    For each checkpoint that has a known door (floor + room), we look up the true
-    door position from building.py, interpolate the estimated position to the
-    checkpoint's time, and record the distance error. If the trajectory carries a
-    `floor` column (the full filter), we also check whether the estimated floor is
-    correct; otherwise the estimate is treated as the single floor 0.
-
-    Parameters
-    ----------
-    trajectory : DataFrame
-        Estimated trajectory with columns t_rel, x, y (and optionally floor).
-    reference : DataFrame
-        A run's reference table (from load_reference).
-
-    Returns
-    -------
-    DataFrame, one row per checkpoint, with columns:
-        number, floor, room, t_rel, est_x, est_y, est_floor,
-        true_x, true_y, error_m, floor_correct
-    """
     doors = building.door_positions()
     has_floor = "floor" in trajectory.columns
     step_times = trajectory["t_rel"].values
 
     records = []
     for _, row in reference.iterrows():
-        # Skip START / END (no floor) and any checkpoint without a known door.
         if pd.isna(row["floor"]) or pd.isna(row["t_rel"]):
             continue
         key = (row["floor"], row["room"])
@@ -143,14 +112,6 @@ def error_at_references(trajectory, reference):
 
 
 def summary_metrics(per_checkpoint):
-    """
-    Reduce a per-checkpoint error table (from error_at_references) to a summary.
-
-    Returns
-    -------
-    dict with mean_error_m, median_error_m, max_error_m, floor_accuracy,
-    n_checkpoints.
-    """
     error = per_checkpoint["error_m"]
     return {
         "mean_error_m": round(float(error.mean()), 2),
@@ -162,27 +123,6 @@ def summary_metrics(per_checkpoint):
 
 
 def compare_metrics(named_trajectories, reference):
-    """
-    Compare several estimated trajectories on the same door references.
-
-    This is the ablation table: pass the map-only, map+BLE, and full-filter
-    trajectories and get their metrics side by side, to see what each fusion
-    component contributes. The trajectories are computed by the caller (so this
-    module never runs the filter); they may or may not carry a floor column.
-
-    Parameters
-    ----------
-    named_trajectories : dict
-        variant name -> trajectory DataFrame.
-    reference : DataFrame
-        A run's reference table (from load_reference).
-
-    Returns
-    -------
-    DataFrame, one row per variant, with columns:
-        variant, mean_error_m, median_error_m, max_error_m, floor_accuracy,
-        n_checkpoints
-    """
     rows = []
     for name, trajectory in named_trajectories.items():
         metrics = summary_metrics(error_at_references(trajectory, reference))

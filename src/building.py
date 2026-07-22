@@ -12,7 +12,6 @@ STAIRCASE_RADIUS_M = 3.0
 
 ROOM_ORDER_WEST_TO_EAST = ["24", "23", "22", "21", "20", "19", "18"]
 
-# Centres of the two staircases (shared by both floors).
 WEST_STAIRCASE = (0.0, 0.0)
 EAST_STAIRCASE = (MAIN_CORRIDOR_LENGTH_M, -EAST_STUB_LENGTH_M + 1.0)
 
@@ -20,14 +19,13 @@ EAST_STAIRCASE = (MAIN_CORRIDOR_LENGTH_M, -EAST_STUB_LENGTH_M + 1.0)
 
 def corridor_polyline(floor):
     return [
-        (0.0, 0.0),                                    # west staircase
-        (MAIN_CORRIDOR_LENGTH_M, 0.0),                 # east end of main corridor
-        (MAIN_CORRIDOR_LENGTH_M, -EAST_STUB_LENGTH_M), # east staircase stub
+        (0.0, 0.0),                                    
+        (MAIN_CORRIDOR_LENGTH_M, 0.0),                 
+        (MAIN_CORRIDOR_LENGTH_M, -EAST_STUB_LENGTH_M), 
     ]
 
 
 def _distance_point_to_segment(px, py, ax, ay, bx, by):
-    """Shortest distance from point (px, py) to the segment a-b."""
     dx, dy = bx - ax, by - ay
     if dx == 0 and dy == 0:
         return math.hypot(px - ax, py - ay)
@@ -52,18 +50,12 @@ def is_walkable(x, y, floor):
 
 
 def can_change_floor(x, y):
-    """
-    Return True if (x, y) is inside a staircase zone.
-
-    Floor changes are only allowed here (west or east staircase).
-    """
     for cx, cy in (WEST_STAIRCASE, EAST_STAIRCASE):
         if math.hypot(x - cx, y - cy) <= STAIRCASE_RADIUS_M:
             return True
     return False
 
 
-# --- Reference points: doors and beacons ------------------------------------
 
 def door_positions():
     doors = {}
@@ -72,7 +64,6 @@ def door_positions():
         doors[(0, room)] = (x, 0.0, 0)
         doors[(1, room)] = (x, 0.0, 1)
 
-    # Floor 1 also has room "21a", located between "22" and "21".
     x_22 = doors[(1, "22")][0]
     x_21 = doors[(1, "21")][0]
     doors[(1, "21a")] = ((x_22 + x_21) / 2, 0.0, 1)
@@ -81,8 +72,8 @@ def door_positions():
 
 def beacon_positions():
     x_west = 2.0
-    x_middle = WEST_OFFSET_M + 3 * DOOR_SPACING_M   # ~ room 21 / 121 (centre)
-    x_east = MAIN_CORRIDOR_LENGTH_M - 2.0           # just before the east stub
+    x_middle = WEST_OFFSET_M + 3 * DOOR_SPACING_M   
+    x_east = MAIN_CORRIDOR_LENGTH_M - 2.0          
 
     return {
         # floor 0
