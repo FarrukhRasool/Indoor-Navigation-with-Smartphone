@@ -20,6 +20,7 @@ come from building.py in M2 Part B).
 """
 
 import pandas as pd
+import utils
 
 
 # The reference workbook (path is relative to the project root).
@@ -66,14 +67,14 @@ def find_header_row(raw, number_col):
     raise ValueError("Could not find the 'Number' header row in the reference file.")
 
 
-def load_reference(run_id, reference_file=REFERENCE_FILE, start_offset_s=0.0):
+def load_reference(run_id=None, reference_file=REFERENCE_FILE, start_offset_s=0.0):
     """
     Load the door reference checkpoints for one run.
 
     Parameters
     ----------
     run_id : int
-        Which run (1..4).
+        Which run (1..4). If None, the globally selected path is used.
     reference_file : str
         Path to the reference spreadsheet.
     start_offset_s : float
@@ -87,6 +88,8 @@ def load_reference(run_id, reference_file=REFERENCE_FILE, start_offset_s=0.0):
     DataFrame with columns: number, floor, room, time_ms, sum_time_ms, t_rel
         One row per checkpoint, in order, including START and END.
     """
+    run_id = utils.resolve_run_id(run_id)
+
     # Read the whole sheet without a header so we can address columns by position.
     raw = pd.read_excel(reference_file, header=None)
 
